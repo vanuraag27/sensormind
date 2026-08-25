@@ -264,6 +264,14 @@
   .transition-dot.Vehicle{background:var(--teal);}
   .transition-dot.Cycling{background:var(--violet);}
   .transition-dot.Public{background:var(--amber);}
+
+  /* Sound toggle button */
+  .sound-toggle{display:flex;align-items:center;gap:8px;margin:4px 20px;padding:6px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--border);}
+  .sound-toggle .label{font-size:11px;color:var(--text-dim);}
+  .sound-toggle .status{font-size:11px;font-weight:600;}
+  .sound-toggle .status.on{color:var(--green);}
+  .sound-toggle .status.off{color:var(--red);}
+  .sound-toggle .sound-btn{background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px;}
 </style>
 </head>
 <body>
@@ -316,6 +324,13 @@
   </header>
   <div class="sim-banner" id="simBanner">SIMULATION MODE — values are generated, not real sensor readings</div>
   <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — nothing is being stored</div>
+
+  <!-- Sound Toggle -->
+  <div class="sound-toggle">
+    <span class="label">🔊 Sound Effects</span>
+    <span class="status on" id="soundStatus">ON</span>
+    <button class="sound-btn" id="soundToggleBtn">🔇</button>
+  </div>
 
   <!-- Quick Mode Buttons -->
   <div class="mode-buttons">
@@ -633,6 +648,13 @@
           </div>
           <label class="switch"><input type="checkbox" id="toggleBatterySaver" checked><span class="slider"></span></label>
         </div>
+        <div class="priv-item">
+          <div>
+            <div style="font-weight:500;color:var(--text-bright)">Sound Effects</div>
+            <div style="font-size:11.5px;color:var(--text-dim)">Play sounds for walking, running &amp; falls</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="toggleSound" checked><span class="slider"></span></label>
+        </div>
       </div>
 
       <div class="section-title">Goals</div>
@@ -718,6 +740,153 @@
   };
 
   // ============================================================
+  // SOUND ENGINE (Web Audio API)
+  // ============================================================
+  const SoundEngine = {
+    enabled: true,
+    ctx: null,
+    _walkingInterval: null,
+    _isWalking: false,
+    _lastStepSound: 0,
+    _fallSoundPlayed: false,
+
+    init() {
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        console.warn('Web Audio not supported');
+        this.ctx = null;
+      }
+    },
+
+    // Play a simple footstep sound (short click/impact)
+    playStep() {
+      if (!this.enabled || !this.ctx) return;
+      const now = Date.now();
+      if (now - this._lastStepSound < 150) return;
+      this._lastStepSound = now;
+
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180 + Math.random() * 60, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.06);
+
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
+
+        osc.start(this.ctx.currentTime);
+        osc.stop(this.ctx.currentTime + 0.06);
+      } catch (e) { /* ignore audio errors */ }
+    },
+
+    // Play a running sound (faster, higher pitch)
+    playRunStep() {
+      if (!this.enabled || !this.ctx) return;
+      const now = Date.now();
+      if (now - this._lastStepSound < 100) return;
+      this._lastStepSound = now;
+
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(280 + Math.random() * 80, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.04);
+
+        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+
+        osc.start(this.ctx.currentTime);
+        osc.stop(this.ctx.currentTime + 0.04);
+      } catch (e) { /* ignore audio errors */ }
+    },
+
+    // Play fall sound (crash/thud)
+    playFall() {
+      if (!this.enabled || !this.ctx) return;
+      if (this._fallSoundPlayed) return;
+      this._fallSoundPlayed = true;
+      setTimeout(() => { this._fallSoundPlayed = false; }, 3000);
+
+      try {
+        // White noise burst for crash effect
+        const bufferSize = this.ctx.sampleRate * 0.4;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.08));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+
+        noise.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(this.ctx.currentTime);
+
+        // Add low frequency thud
+        const osc = this.ctx.createOscillator();
+        const g2 = this.ctx.createGain();
+        osc.connect(g2);
+        g2.connect(this.ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.3);
+        g2.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        g2.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+        osc.start(this.ctx.currentTime);
+        osc.stop(this.ctx.currentTime + 0.3);
+      } catch (e) { /* ignore audio errors */ }
+    },
+
+    // Play a simple ambient walking rhythm
+    startWalkingLoop() {
+      if (this._walkingInterval) return;
+      let stepCount = 0;
+      this._walkingInterval = setInterval(() => {
+        if (!this.enabled) return;
+        stepCount++;
+        // Alternate between left and right foot sounds
+        if (stepCount % 2 === 0) {
+          this.playStep();
+        } else {
+          // Slightly different sound for other foot
+          this.playStep();
+        }
+      }, 450); // ~2.2 steps per second
+    },
+
+    stopWalkingLoop() {
+      if (this._walkingInterval) {
+        clearInterval(this._walkingInterval);
+        this._walkingInterval = null;
+      }
+    },
+
+    setEnabled(val) {
+      this.enabled = val;
+      if (!val) this.stopWalkingLoop();
+    },
+
+    toggle() {
+      this.enabled = !this.enabled;
+      if (!this.enabled) this.stopWalkingLoop();
+      return this.enabled;
+    }
+  };
+
+  // ============================================================
   // STATE
   // ============================================================
   const state = {
@@ -763,7 +932,9 @@
     confidenceHistory: [],
     _suggested: {},
     stepGoal: CONFIG.STEP_GOAL_DEFAULT,
-    debug: false
+    debug: false,
+    _lastActivitySound: '',
+    _soundCooldown: 0
   };
 
   // ============================================================
@@ -977,6 +1148,7 @@
   function initSensors() {
     state.isLive = true;
     $('gate').classList.add('hidden');
+    SoundEngine.init();
 
     if ('DeviceMotionEvent' in window) {
       if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -1157,6 +1329,8 @@
     // Fall Detection
     if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
       state.fallTriggered = true;
+      // Play fall sound
+      SoundEngine.playFall();
       setTimeout(() => {
         const recent = state.accel.history.slice(-10);
         const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
@@ -1179,6 +1353,13 @@
         state.steps++;
         state._lastStepTime = now;
         updateGoalProgress();
+
+        // Play step sound based on activity
+        if (state.currentActivity === 'Running') {
+          SoundEngine.playRunStep();
+        } else if (state.currentActivity === 'Walking') {
+          SoundEngine.playStep();
+        }
       }
     }
 
@@ -1217,14 +1398,30 @@
 
     state.activityCounts[newAct] = (state.activityCounts[newAct] || 0) + 1;
 
+    // Handle sound effects for activity changes
+    const soundActivities = ['Walking', 'Running'];
+    const oldAct = state.currentActivity;
+
     if (state.currentActivity !== newAct) {
-      const oldAct = state.currentActivity;
       state.currentActivity = newAct;
       addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence. Variance: ${getVariance(state.accel.history.slice(-20)).toFixed(4)}`);
       triggerAutomation(newAct);
       renderTransitionChart();
       renderDurationDisplay();
       detectPatterns();
+
+      // Sound effect on activity change
+      if (soundActivities.includes(newAct) && SoundEngine.enabled) {
+        if (newAct === 'Walking') {
+          SoundEngine.startWalkingLoop();
+        } else if (newAct === 'Running') {
+          SoundEngine.startWalkingLoop();
+        }
+      } else {
+        SoundEngine.stopWalkingLoop();
+      }
+
+      // If fall detected, play fall sound (already handled in processAccel)
     }
 
     renderDailySummary();
@@ -1752,6 +1949,29 @@
   }
 
   // ============================================================
+  // SOUND TOGGLE
+  // ============================================================
+  function updateSoundUI() {
+    const status = $('soundStatus');
+    if (SoundEngine.enabled) {
+      status.textContent = 'ON';
+      status.className = 'status on';
+    } else {
+      status.textContent = 'OFF';
+      status.className = 'status off';
+    }
+  }
+
+  function toggleSound() {
+    SoundEngine.setEnabled(!SoundEngine.enabled);
+    updateSoundUI();
+    showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
+    // Also update settings toggle
+    const toggle = $('toggleSound');
+    if (toggle) toggle.checked = SoundEngine.enabled;
+  }
+
+  // ============================================================
   // MAIN LOOP
   // ============================================================
   function startEngine() {
@@ -1794,6 +2014,7 @@
     renderDurationDisplay();
     renderTransitionChart();
     updateGoalProgress();
+    updateSoundUI();
 
     setInterval(() => {
       if (state.batterySaver && state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD) {
@@ -1874,6 +2095,8 @@
         .map(([act, secs]) => `${act}: ${Math.round(secs / 60)}m`)
         .join(', ');
       ans.textContent = `Activity durations: ${durations || 'No data yet'}.`;
+    } else if (q.includes('sound')) {
+      ans.textContent = `Sound effects are ${SoundEngine.enabled ? 'ON 🔊' : 'OFF 🔇'}.`;
     } else {
       ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g.`;
     }
@@ -1886,6 +2109,14 @@
   // Enable Button
   $('enableBtn').addEventListener('click', () => {
     StorageEngine.init().then(() => initSensors());
+  });
+
+  // Sound Toggle
+  $('soundToggleBtn').addEventListener('click', toggleSound);
+  $('toggleSound').addEventListener('change', (e) => {
+    SoundEngine.setEnabled(e.target.checked);
+    updateSoundUI();
+    showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
   });
 
   // Why Button
@@ -1974,6 +2205,7 @@
     state.steps = 0;
     state.confidenceHistory = [];
     state._suggested = {};
+    SoundEngine.stopWalkingLoop();
     renderTimeline();
     renderAutomationHistory();
     renderDailySummary();
@@ -2199,8 +2431,9 @@
   renderDurationDisplay();
   renderTransitionChart();
   updateGoalProgress();
+  updateSoundUI();
 
-  console.log('SensorMind v2.0 initialized. Click "Enable Sensors" to start.');
+  console.log('SensorMind v2.1 with Sound Effects initialized. Click "Enable Sensors" to start.');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
