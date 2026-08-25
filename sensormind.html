@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SensorMind — Your phone knows more than you think</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14; --panel:#12161F; --panel2:#171C27; --border:#232937;
+    --text:#C7CDD9; --text-dim:#6B7385; --text-bright:#F1F3F8;
+    --amber:#FFB84D; --teal:#4DD9C4; --red:#FF6B6B; --green:#6BCB77; --violet:#B39DFF;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
+  ::selection{background:var(--amber);color:#0B0E14;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  button{font-family:inherit;}
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
+
+  #app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;
+    background:radial-gradient(600px 300px at 50% -80px, rgba(255,184,77,0.06), transparent 70%), var(--bg);
+    padding-bottom:96px;}
+  @media(min-width:820px){ #app{max-width:760px;} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;} }
+  @media(min-width:1100px){ #app{max-width:960px;} }
+
+  #gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:32px;text-align:center;overflow-y:auto;}
+  #gate.hidden{display:none;}
+  .gate-mark{width:64px;height:64px;margin-bottom:24px;}
+  .gate-mark svg{width:100%;height:100%;}
+  #gate h1{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;color:var(--text-bright);margin:0 0 6px;letter-spacing:-.02em;}
+  #gate .tagline{color:var(--text-dim);font-size:13px;margin-bottom:26px;font-style:italic;}
+  .perm-explain{max-width:360px;text-align:left;margin-bottom:22px;}
+  .perm-row{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
+  .perm-row:last-child{border-bottom:none;}
+  .perm-icon{width:30px;height:30px;flex-shrink:0;border-radius:8px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .perm-row-title{font-size:13.5px;color:var(--text-bright);font-weight:600;margin-bottom:2px;}
+  .perm-row-desc{font-size:12px;color:var(--text-dim);line-height:1.5;}
+  .btn-primary{background:var(--amber);color:#191207;border:none;font-family:'Space Grotesk',sans-serif;font-weight:600;
+    font-size:15px;padding:15px 30px;border-radius:10px;cursor:pointer;transition:transform .15s;}
+  .btn-primary:active{transform:scale(.97);}
+  .btn-primary:focus-visible{outline:2px solid var(--text-bright);outline-offset:3px;}
+  .btn-secondary{background:none;border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:500;
+    padding:11px 20px;border-radius:10px;cursor:pointer;}
+  .btn-secondary:focus-visible, .btn-primary:focus-visible, button:focus-visible, input:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  #gate .fine{margin-top:16px;font-size:11.5px;color:var(--text-dim);max-width:320px;line-height:1.5;}
+
+  header{padding:20px 20px 14px;display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:10;background:linear-gradient(var(--bg) 80%,transparent);backdrop-filter:blur(6px);}
+  .brand{display:flex;align-items:center;gap:9px;}
+  .brand-mark{width:22px;height:22px;flex-shrink:0;}
+  .brand-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:var(--text-bright);letter-spacing:-.01em;}
+  .header-status{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+  .dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .dnr-banner{background:rgba(255,107,107,0.12);border-bottom:1px solid rgba(255,107,107,0.3);color:var(--red);
+    font-family:'JetBrains Mono',monospace;font-size:11px;text-align:center;padding:7px;display:none;letter-spacing:.08em;}
+  .dnr-banner.show{display:block;}
+  .sim-banner{background:rgba(179,157,255,0.1);border-bottom:1px solid rgba(179,157,255,.3);color:var(--violet);
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;text-align:center;padding:6px;display:none;letter-spacing:.05em;}
+  .sim-banner.show{display:block;}
+
+  .section{padding:4px 20px 8px;}
+  .section-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:var(--text-bright);
+    margin:22px 0 12px;display:flex;align-items:center;justify-content:space-between;}
+  .section-title small{font-family:'JetBrains Mono',monospace;font-weight:400;font-size:11px;color:var(--text-dim);}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;}
+
+  .context-card{margin:6px 20px 16px;padding:22px;border-radius:16px;background:var(--panel);border:1px solid var(--border);}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;}
+  .context-emoji{font-size:34px;margin-bottom:6px;display:block;}
+  .context-value{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;color:var(--text-bright);
+    letter-spacing:-.02em;line-height:1.1;margin-bottom:4px;}
+  .context-conf{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--amber);font-weight:600;margin-bottom:16px;}
+  .context-metrics{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:4px;}
+  .cm{display:flex;flex-direction:column;gap:2px;}
+  .cm-label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;}
+  .cm-value{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--text-bright);font-weight:600;}
+
+  .quality-pill{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;
+    padding:5px 11px;border-radius:20px;border:1px solid var(--border);margin-top:14px;}
+  .quality-pill .dotq{width:6px;height:6px;border-radius:50%;}
+  .quality-high .dotq{background:var(--green);} .quality-high{color:var(--green);border-color:rgba(107,203,119,.35);}
+  .quality-medium .dotq{background:var(--amber);} .quality-medium{color:var(--amber);border-color:rgba(255,184,77,.35);}
+  .quality-low .dotq{background:var(--red);} .quality-low{color:var(--red);border-color:rgba(255,107,107,.35);}
+
+  .why-toggle{margin-top:14px;background:none;border:1px solid var(--border);color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 13px;border-radius:8px;cursor:pointer;}
+  .why-panel{margin-top:10px;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);
+    border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;color:var(--text);display:none;}
+  .why-panel.open{display:block;}
+  .why-panel div{display:flex;justify-content:space-between;}
+
+  .suggest-card{margin:0 20px 16px;padding:16px;border-radius:14px;background:linear-gradient(135deg, rgba(255,184,77,0.08), rgba(77,217,196,0.05));
+    border:1px solid rgba(255,184,77,.25);}
+  .suggest-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+  .suggest-text{font-size:14px;color:var(--text-bright);margin-bottom:12px;}
+  .suggest-actions{display:flex;gap:10px;}
+
+  .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;}
+  .status-row{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px solid var(--border);}
+  .status-row:nth-last-child(-n+1){border-bottom:none;}
+  .status-key{color:var(--text-dim);}
+  .status-val{font-family:'JetBrains Mono',monospace;color:var(--text-bright);font-weight:500;}
+  .status-val.na{color:var(--text-dim); font-style:italic;}
+  .status-val.good{color:var(--green);} .status-val.warn{color:var(--amber);}
+
+  .scope{margin:0 20px 8px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel);}
+  .scope-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 0;}
+  .scope-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;}
+  .scope-val{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal);}
+  canvas#waveform{width:100%;height:90px;display:block;}
+
+  .sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .sensor-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 14px;}
+  .sensor-card.unavailable{opacity:.5;}
+  .sensor-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;}
+  .sensor-name{font-size:12px;color:var(--text-dim);font-weight:500;}
+  .sensor-status-tag{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:10px;letter-spacing:.04em;}
+  .tag-active{background:rgba(107,203,119,.12);color:var(--green);}
+  .tag-available{background:rgba(255,184,77,.12);color:var(--amber);}
+  .tag-unavailable{background:rgba(107,115,133,.15);color:var(--text-dim);}
+  .sensor-readout{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text-bright);line-height:1.65;}
+  .sensor-readout b{color:var(--teal);font-weight:600;}
+  .sensor-meta{font-size:10px;color:var(--text-dim);margin-top:6px;font-family:'JetBrains Mono',monospace;}
+
+  .rule{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;}
+  .rule-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;}
+  .rule-text{font-size:13px;line-height:1.7;}
+  .rule-when{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;}
+  .rule-when b{color:var(--text-bright);text-transform:none;font-family:'Inter',sans-serif;font-size:13px;}
+  .rule-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .chip-btn{background:var(--panel2);border:1px solid var(--border);color:var(--text-dim);font-size:10.5px;
+    padding:5px 9px;border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',monospace;}
+  .chip-btn:hover{color:var(--text-bright);}
+  .chip-btn.danger:hover{color:var(--red);border-color:rgba(255,107,107,.4);}
+  .switch{position:relative;width:38px;height:22px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:var(--border);border-radius:22px;cursor:pointer;transition:.2s;}
+  .slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--text-dim);border-radius:50%;transition:.2s;}
+  input:checked + .slider{background:rgba(255,184,77,.25);}
+  input:checked + .slider:before{transform:translateX(16px);background:var(--amber);}
+
+  .builder-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;}
+  .builder-step{margin-bottom:14px;}
+  .builder-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+  select, .num-input{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text-bright);
+    padding:11px 12px;border-radius:9px;font-size:13.5px;font-family:'Inter',sans-serif;}
+  .builder-row{display:flex;gap:8px;}
+  .builder-row select, .builder-row input{flex:1;}
+
+  .timeline{position:relative;padding-left:20px;}
+  .timeline:before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--border);}
+  .tl-item{position:relative;padding-bottom:16px;cursor:pointer;}
+  .tl-item:before{content:"";position:absolute;left:-20px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--amber);border:2px solid var(--bg);}
+  .tl-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);margin-bottom:2px;}
+  .tl-label{font-size:13.5px;color:var(--text-bright);font-weight:500;}
+  .tl-detail{display:none;margin-top:8px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);
+    border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.9;color:var(--text-dim);}
+  .tl-detail.open{display:block;}
+  .tl-detail span{color:var(--teal);}
+  .tl-empty{color:var(--text-dim);font-size:13px;font-style:italic;padding:8px 0;}
+
+  .activity-bar-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .activity-bar-row:last-child{border-bottom:none;}
+  .ab-label{width:88px;font-size:12.5px;color:var(--text);flex-shrink:0;}
+  .ab-track{flex:1;height:8px;background:var(--panel2);border-radius:5px;overflow:hidden;}
+  .ab-fill{height:100%;border-radius:5px;}
+  .ab-val{width:64px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);flex-shrink:0;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  .stat-box{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px;}
+  .stat-num{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:var(--text-bright);}
+  .stat-label{font-size:10.5px;color:var(--text-dim);margin-top:2px;}
+
+  .insight-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;}
+  .insight-tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+  .insight-text{font-size:14px;color:var(--text-bright);line-height:1.6;}
+  .insight-caveat{font-size:11px;color:var(--text-dim);margin-top:8px;font-style:italic;}
+  .suggestion-box{background:var(--panel);border:1px solid rgba(179,157,255,.3);border-radius:14px;padding:16px;margin-bottom:12px;}
+
+  .play-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;text-align:center;}
+  .play-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:var(--text-bright);margin-bottom:6px;}
+  .play-desc{font-size:12px;color:var(--text-dim);margin-bottom:14px;}
+  .play-readout{font-family:'JetBrains Mono',monospace;font-size:22px;color:var(--amber);font-weight:600;}
+  .play-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);margin-top:4px;}
+  .tilt-dot-wrap{width:120px;height:120px;border-radius:50%;border:1px solid var(--border);background:var(--panel2);
+    margin:0 auto 10px;position:relative;}
+  .tilt-dot{width:14px;height:14px;border-radius:50%;background:var(--teal);position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%); box-shadow:0 0 10px var(--teal);}
+
+  .ask-box{display:flex;gap:8px;margin-bottom:14px;}
+  .ask-input{flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text-bright);padding:12px 14px;
+    border-radius:10px;font-size:13.5px;}
+  .ask-answer{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13.5px;
+    color:var(--text-bright);margin-bottom:12px; line-height:1.6;}
+  .ask-chip{display:inline-block;background:var(--panel2);border:1px solid var(--border);color:var(--text-dim);
+    font-size:11px;padding:6px 11px;border-radius:16px;margin:0 6px 6px 0;cursor:pointer;}
+
+  .priv-item{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .priv-item:last-child{border-bottom:none;}
+  .priv-btn{background:none;border:1px solid var(--border);color:var(--red);font-family:'JetBrains Mono',monospace;
+    font-size:11px;padding:6px 11px;border-radius:8px;cursor:pointer;}
+  .settings-link{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+  .settings-link:last-child{border-bottom:none;}
+  .settings-link .lbl{font-size:14px;color:var(--text-bright);font-weight:500;}
+  .settings-link .sub{font-size:11.5px;color:var(--text-dim);margin-top:2px;}
+  .chev{color:var(--text-dim);}
+  pre#debugRaw{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--teal);line-height:1.7;overflow-x:auto;
+    max-height:280px;overflow-y:auto; white-space:pre-wrap;}
+  .btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+
+  #fallModal{position:fixed;inset:0;background:rgba(11,14,20,.85);z-index:70;display:none;align-items:center;justify-content:center;padding:24px;}
+  #fallModal.show{display:flex;}
+  .fall-box{background:var(--panel);border:1px solid var(--red);border-radius:16px;padding:26px;max-width:340px;text-align:center;}
+  .fall-box .icon{font-size:34px;margin-bottom:10px;}
+  .fall-box h3{font-family:'Space Grotesk',sans-serif;color:var(--text-bright);margin:0 0 8px;}
+  .fall-box p{color:var(--text-dim);font-size:13px;line-height:1.6;margin-bottom:18px;}
+  .fall-btns{display:flex;gap:10px;}
+  .fall-btns button{flex:1;padding:12px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
+  #fallOk{background:var(--panel2);color:var(--text-bright);border:1px solid var(--border) !important;}
+  #fallHelp{background:var(--red);color:#1a0d0d;}
+
+  #toast{position:fixed;left:50%;bottom:100px;transform:translate(-50%,20px);z-index:60;background:var(--panel2);
+    border:1px solid var(--border);color:var(--text-bright);padding:12px 18px;border-radius:12px;font-size:13px;
+    max-width:380px;width:calc(100% - 48px);text-align:center;opacity:0;pointer-events:none;transition:.3s ease;
+    box-shadow:0 12px 30px rgba(0,0,0,.4);}
+  #toast.show{opacity:1;transform:translate(-50%,0);}
+
+  nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;
+    background:rgba(18,22,31,.94);backdrop-filter:blur(10px);border-top:1px solid var(--border);
+    display:flex;justify-content:space-around;padding:9px 4px calc(9px + env(safe-area-inset-bottom));}
+  @media(min-width:820px){ nav{max-width:760px;} }
+  .nav-btn{background:none;border:none;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:9.5px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:4px 6px;}
+  .nav-btn.active{color:var(--amber);}
+  .nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+  .view{display:none;} .view.active{display:block;}
+  footer.note{padding:20px;font-size:11px;color:var(--text-dim);line-height:1.7;text-align:center;}
+  .empty-note{font-size:12.5px;color:var(--text-dim);font-style:italic;padding:10px 0;}
+
+  .storage-status{font-size:11px;color:var(--text-dim);margin-top:6px;padding:8px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--border);}
+  .storage-status .ok{color:var(--green);}
+  .storage-status .warn{color:var(--amber);}
+  .storage-status .err{color:var(--red);}
+
+  .mode-buttons{display:flex;gap:8px;margin:8px 20px;}
+  .mode-buttons .btn-secondary{flex:1;padding:8px 4px;font-size:12px;text-align:center;}
+
+  .goal-progress{width:100%;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:6px;}
+  .goal-progress .fill{height:100%;background:var(--amber);border-radius:3px;transition:width 0.5s ease;}
+
+  .duration-tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);margin:2px 4px;}
+
+  .transition-chart{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+  .transition-dot{width:8px;height:8px;border-radius:50%;}
+  .transition-dot.Stationary{background:var(--text-dim);}
+  .transition-dot.Walking{background:var(--amber);}
+  .transition-dot.Running{background:var(--red);}
+  .transition-dot.Vehicle{background:var(--teal);}
+  .transition-dot.Cycling{background:var(--violet);}
+  .transition-dot.Public{background:var(--amber);}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-mark">
+    <svg viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="30" stroke="#FFB84D" stroke-width="1.5" opacity="0.35"/>
+      <circle cx="32" cy="32" r="20" stroke="#4DD9C4" stroke-width="1.5" opacity="0.5"/>
+      <circle cx="32" cy="32" r="4" fill="#FFB84D"/>
+      <path d="M32 2v10M32 52v10M2 32h10M52 32h10" stroke="#6B7385" stroke-width="1.2"/>
+    </svg>
+  </div>
+  <h1>SensorMind</h1>
+  <div class="tagline">"Your phone knows more than you think."</div>
+
+  <div class="perm-explain">
+    <div class="perm-row"><div class="perm-icon">📈</div><div><div class="perm-row-title">Accelerometer &amp; gyroscope</div><div class="perm-row-desc">Used to detect movement, steps, and activity like walking or driving.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">📍</div><div><div class="perm-row-title">Location</div><div class="perm-row-desc">Used for travel speed and place context (e.g. "at work"). Never uploaded.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">🔋</div><div><div class="perm-row-title">Device state</div><div class="perm-row-desc">Battery, network and screen state, when your browser exposes them.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">🎙️</div><div><div class="perm-row-title">Camera &amp; microphone</div><div class="perm-row-desc">Not requested. Only used if you explicitly enable a feature that needs them (none currently do).</div></div></div>
+  </div>
+
+  <button class="btn-primary" id="enableBtn">Enable Sensors</button>
+  <div class="fine">Everything runs on-device. On desktop, or if a sensor is missing, SensorMind falls back to a clearly-labeled simulation so you can still see the pipeline work.</div>
+</div>
+
+<div id="fallModal">
+  <div class="fall-box">
+    <div class="icon">⚠️</div>
+    <h3>Possible fall detected</h3>
+    <p>SensorMind noticed a sudden impact followed by stillness. This is an experimental, non-medical heuristic — it can be wrong.</p>
+    <div class="fall-btns">
+      <button id="fallOk">I'm OK</button>
+      <button id="fallHelp">Need Help</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" stroke="#FFB84D" stroke-width="2.5" opacity="0.4"/>
+        <circle cx="32" cy="32" r="6" fill="#FFB84D"/>
+      </svg>
+      <span class="brand-name">SensorMind</span>
+    </div>
+    <div class="header-status"><span class="dot" id="liveDot"></span><span id="liveLabel">LIVE</span></div>
+  </header>
+  <div class="sim-banner" id="simBanner">SIMULATION MODE — values are generated, not real sensor readings</div>
+  <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — nothing is being stored</div>
+
+  <!-- Quick Mode Buttons -->
+  <div class="mode-buttons">
+    <button class="btn-secondary" id="modeNormal">Normal</button>
+    <button class="btn-secondary" id="modeRest">Rest</button>
+    <button class="btn-secondary" id="modeWalk">Walking</button>
+  </div>
+
+  <div class="view active" id="view-home">
+    <div class="grid2">
+    <div>
+    <div class="context-card">
+      <div class="eyebrow">Current Context</div>
+      <span class="context-emoji" id="contextEmoji">🧭</span>
+      <div class="context-value" id="contextName">Reading sensors…</div>
+      <div class="context-conf" id="contextConf">—</div>
+      <div class="status-row" style="border:none;padding:2px 0 0;"><span class="status-key">Current Mode</span><span class="status-val good" id="currentModeVal">NORMAL</span></div>
+      <div class="context-metrics" id="contextMetrics"></div>
+      <div id="qualityPill" class="quality-pill quality-medium"><span class="dotq"></span><span id="qualityText">Detection Quality: Medium</span></div>
+      <button class="why-toggle" id="whyBtn">Why was this detected? ▾</button>
+      <div class="why-panel" id="whyPanel"></div>
+    </div>
+
+    <div class="suggest-card" id="suggestCard">
+      <div class="suggest-label">Suggested Action</div>
+      <div class="suggest-text" id="suggestText">You appear to be stationary.</div>
+      <div class="suggest-actions">
+        <button class="btn-secondary" id="suggestDismiss">Dismiss</button>
+      </div>
+    </div>
+    </div>
+
+    <div>
+    <div class="section" style="padding-top:0">
+      <div class="section-title" style="margin-top:0">Phone Status</div>
+      <div class="card status-grid" id="statusGrid"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Environment <small>heuristic</small></div>
+      <div class="card status-grid" id="envGrid"></div>
+    </div>
+    </div>
+    </div>
+
+    <!-- Daily Summary Card -->
+    <div class="card" style="margin:8px 20px 0;">
+      <div class="section-title" style="margin:0 0 8px;">Today's Summary <small>session</small></div>
+      <div class="status-grid" id="dailySummary"></div>
+    </div>
+
+    <!-- Activity Duration -->
+    <div class="card" style="margin:8px 20px 0;">
+      <div class="section-title" style="margin:0 0 8px;">Activity Duration <small>this session</small></div>
+      <div id="durationDisplay" style="font-size:12px;color:var(--text-dim);line-height:2;"></div>
+    </div>
+
+    <!-- Goal Progress -->
+    <div class="card" style="margin:8px 20px 0;">
+      <div class="section-title" style="margin:0 0 8px;">Daily Step Goal</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;">
+        <span id="goalProgressText">0 / 10000 steps</span>
+        <span id="goalPercentText">0%</span>
+      </div>
+      <div class="goal-progress"><div class="fill" id="goalFill" style="width:0%;"></div></div>
+    </div>
+
+    <!-- Transition Chart -->
+    <div class="card" style="margin:8px 20px 0;">
+      <div class="section-title" style="margin:0 0 8px;">Activity Timeline</div>
+      <div class="transition-chart" id="transitionChart"></div>
+    </div>
+
+    <div class="scope">
+      <div class="scope-head">
+        <span class="scope-title">Accel Magnitude · Live</span>
+        <span class="scope-val" id="scopeVal">0.00 g</span>
+      </div>
+      <canvas id="waveform"></canvas>
+    </div>
+
+    <div class="section">
+      <div class="section-title">My Day <small id="tlCount">0 events</small></div>
+      <div class="timeline" id="timeline"><div class="tl-empty">No events detected yet — start moving.</div></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-activity">
+    <div class="section">
+      <div class="section-title" style="margin-top:22px">Today</div>
+      <div class="card" id="activityBars"></div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-num" id="statLongest">—</div><div class="stat-label">Longest period</div></div>
+        <div class="stat-box"><div class="stat-num" id="statTransitions">0</div><div class="stat-label">Transitions today</div></div>
+        <div class="stat-box"><div class="stat-num" id="statSteps">0</div><div class="stat-label">Total Steps</div></div>
+        <div class="stat-box"><div class="stat-num" id="statActiveTime">0m</div><div class="stat-label">Active Time</div></div>
+      </div>
+      <div class="empty-note">Estimates derived from sensor data during this browser session.</div>
+    </div>
+  </div>
+
+  <div class="view" id="view-automations">
+    <div class="section">
+      <div class="section-title" style="margin-top:22px">+ Create Automation</div>
+      <div class="builder-box">
+        <div class="builder-step">
+          <div class="builder-label">Automation Name</div>
+          <input class="num-input" id="bName" type="text" placeholder="e.g. Morning Walk">
+        </div>
+        <div class="builder-step">
+          <div class="builder-label">When</div>
+          <select id="bWhen">
+            <option value="Walking">Walking starts</option>
+            <option value="Running">Running starts</option>
+            <option value="Vehicle">Driving starts</option>
+            <option value="Cycling">Cycling starts</option>
+            <option value="Stationary">Stationary</option>
+            <option value="Shake">Shake detected</option>
+            <option value="Fall">Possible fall detected</option>
+            <option value="BatteryLow">Battery low</option>
+            <option value="ChargingStart">Charging started</option>
+            <option value="Public Transport">Public Transport detected</option>
+          </select>
+        </div>
+        <div class="builder-step">
+          <div class="builder-label">If (optional condition)</div>
+          <div class="builder-row">
+            <select id="bCondType">
+              <option value="none">No condition</option>
+              <option value="battery">Battery below %</option>
+              <option value="timeAfter">Time after (HH)</option>
+              <option value="timeBefore">Time before (HH)</option>
+              <option value="confidence">Confidence above %</option>
+            </select>
+            <input class="num-input" id="bCondVal" type="number" placeholder="value" style="max-width:100px">
+          </div>
+        </div>
+        <div class="builder-step">
+          <div class="builder-label">Then</div>
+          <select id="bThen">
+            <option value="notify">Show notification</option>
+            <option value="track">Start activity tracking</option>
+            <option value="record">Record event only</option>
+            <option value="mode">Switch internal mode to match</option>
+          </select>
+        </div>
+        <div class="builder-step">
+          <div class="builder-label">Cooldown (seconds, min 30)</div>
+          <input class="num-input" id="bCooldown" type="number" value="30" min="30">
+        </div>
+        <button class="btn-primary" id="bCreate" style="width:100%;padding:12px;">Create Automation</button>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-secondary" id="exportRulesBtn">Export Rules</button>
+        <button class="btn-secondary" id="importRulesBtn">Import Rules</button>
+        <input type="file" id="importRulesFile" accept="application/json" style="display:none;">
+      </div>
+
+      <div class="section-title">Your Automations <small id="ruleCount">0 active</small></div>
+      <div id="ruleList"></div>
+
+      <div class="section-title">Automation History</div>
+      <div id="autoHistory"><div class="empty-note">No automations have run yet.</div></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-insights">
+    <div class="section">
+      <div class="section-title" style="margin-top:22px">Ask SensorMind</div>
+      <div class="ask-box">
+        <input class="ask-input" id="askInput" placeholder="What am I doing now?">
+        <button class="btn-primary" id="askBtn" style="padding:12px 16px;">Ask</button>
+      </div>
+      <div>
+        <span class="ask-chip" data-q="What am I doing now?">What am I doing now?</span>
+        <span class="ask-chip" data-q="How active was I today?">How active was I today?</span>
+        <span class="ask-chip" data-q="Which sensors are active?">Which sensors are active?</span>
+        <span class="ask-chip" data-q="What automations ran today?">Automations today?</span>
+      </div>
+      <div id="askAnswer" class="ask-answer" style="display:none;"></div>
+
+      <div class="section-title">Today's Insight</div>
+      <div class="insight-card"><div class="insight-tag">Movement</div><div class="insight-text" id="insightMovement">Not enough data yet.</div></div>
+      <div class="insight-card"><div class="insight-tag">Travel</div><div class="insight-text" id="insightTravel">Not enough data yet.</div></div>
+      <div class="insight-card"><div class="insight-tag">Pattern</div><div class="insight-text" id="insightPattern">Still learning your patterns for this session.</div></div>
+      <div class="insight-caveat">All insights are estimates based on sensor data collected in this browser session only, and reset on reload.</div>
+
+      <div class="section-title">My Patterns</div>
+      <div class="card status-grid" id="patternGrid"></div>
+      <div class="btn-row"><button class="btn-secondary" id="resetPatternsBtn">Reset Personal Patterns</button></div>
+
+      <div class="section-title">Smart Suggestion</div>
+      <div id="suggestionArea"><div class="empty-note">SensorMind will suggest automations here once it notices a repeated pattern.</div></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-sensors">
+    <div class="section">
+      <div class="section-title" style="margin-top:22px">Sensor Availability <small id="sensorCount">0/8</small></div>
+      <div class="sensor-grid" id="sensorFullGrid"></div>
+
+      <div class="section-title">Sensor Playground</div>
+      <div class="play-card">
+        <div class="play-title">Shake</div>
+        <div class="play-desc">Shake your phone to test gesture detection.</div>
+        <div class="play-readout" id="playShake">0.00</div>
+        <div class="play-sub" id="playShakeSub">shake intensity</div>
+      </div>
+      <div class="play-card">
+        <div class="play-title">Tilt</div>
+        <div class="play-desc">Tilt your phone — the dot follows in real time.</div>
+        <div class="tilt-dot-wrap"><div class="tilt-dot" id="tiltDot"></div></div>
+        <div class="play-sub" id="tiltVals">X 0° · Y 0° · Z 0°</div>
+      </div>
+      <div class="play-card">
+        <div class="play-title">Movement Pattern</div>
+        <div class="play-desc">Move continuously to see live pattern detection.</div>
+        <div class="play-readout" id="playMove" style="font-size:15px;">No pattern detected</div>
+      </div>
+
+      <div class="section-title">My Gestures <small id="gestureCount">0 saved</small></div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="builder-row" style="margin-bottom:10px;">
+          <input class="num-input" id="gestName" type="text" placeholder="Gesture name, e.g. Triple Shake">
+        </div>
+        <div class="builder-row" style="margin-bottom:10px;">
+          <select id="gestDuration">
+            <option value="2000">2 sec</option>
+            <option value="5000" selected>5 sec</option>
+            <option value="10000">10 sec</option>
+          </select>
+          <select id="gestAction">
+            <option value="notify">Show SensorMind alert</option>
+            <option value="record">Record timeline event</option>
+            <option value="mode">Switch mode to REST</option>
+          </select>
+        </div>
+        <button class="btn-secondary" id="gestStart" style="width:100%;">Start Recording</button>
+        <div class="mono" id="gestStatus" style="font-size:12px;color:var(--text-dim);margin-top:8px;">Not recording. Pattern-based gesture recognition — not machine learning.</div>
+      </div>
+      <div id="gestureList"></div>
+
+      <div class="section-title">Sensor Lab</div>
+      <div class="card">
+        <div class="builder-row" style="margin-bottom:10px;">
+          <select id="labDuration">
+            <option value="10">10 seconds</option>
+            <option value="30">30 seconds</option>
+            <option value="60">1 minute</option>
+            <option value="300">5 minutes</option>
+          </select>
+          <button class="btn-secondary" id="labStart">Start Recording</button>
+        </div>
+        <div class="mono" id="labStatus" style="font-size:12px;color:var(--text-dim);">Not recording.</div>
+        <div class="btn-row">
+          <button class="chip-btn" id="labExportCsv">Export CSV</button>
+          <button class="chip-btn" id="labExportJson">Export JSON</button>
+        </div>
+      </div>
+
+      <div class="section-title">Simulation Controls</div>
+      <div class="card">
+        <div class="builder-row" style="margin-bottom:10px;">
+          <select id="simOverride">
+            <option value="auto">Auto-detect Sensors / Sim</option>
+            <option value="forceSim">Force Simulation Mode</option>
+            <option value="Stationary">Force Activity: Stationary</option>
+            <option value="Walking">Force Activity: Walking</option>
+            <option value="Running">Force Activity: Running</option>
+            <option value="Vehicle">Force Activity: Vehicle</option>
+            <option value="Public Transport">Force Activity: Public Transport</option>
+          </select>
+        </div>
+        <div class="builder-row" style="gap:10px;">
+          <button class="btn-secondary" id="triggerFallSim" style="flex:1;">Simulate Fall Impact</button>
+          <button class="btn-secondary" id="triggerShakeSim" style="flex:1;">Simulate Shake</button>
+        </div>
+      </div>
+
+      <div class="section-title">Developer Mode</div>
+      <div class="card">
+        <div class="status-row"><span class="status-key">Show raw pipeline output</span><label class="switch"><input type="checkbox" id="debugToggle"><span class="slider"></span></label></div>
+        <div class="storage-status" id="storageStatus">Storage: <span class="ok">Memory (session only)</span></div>
+        <div class="status-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+          <span class="status-key">Confidence History</span>
+          <span class="status-val" id="confHistorySummary">—</span>
+        </div>
+      </div>
+      <pre id="debugRaw">Enable the toggle above to stream raw → fused → classified values each tick.</pre>
+    </div>
+  </div>
+
+  <div class="view" id="view-settings">
+    <div class="section">
+      <div class="section-title" style="margin-top:22px">Privacy &amp; Data Control</div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="priv-item">
+          <div>
+            <div style="font-weight:500;color:var(--text-bright)">Do Not Record Mode</div>
+            <div style="font-size:11.5px;color:var(--text-dim)">Pause context processing &amp; data logging</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="toggleDNR"><span class="slider"></span></label>
+        </div>
+        <div class="priv-item">
+          <div>
+            <div style="font-weight:500;color:var(--text-bright)">Clear History</div>
+            <div style="font-size:11.5px;color:var(--text-dim)">Wipe timeline, activity logs &amp; patterns</div>
+          </div>
+          <button class="priv-btn" id="btnClearHistory">Clear Data</button>
+        </div>
+        <div class="priv-item">
+          <div>
+            <div style="font-weight:500;color:var(--text-bright)">Battery Saver Mode</div>
+            <div style="font-size:11.5px;color:var(--text-dim)">Auto-throttle processing when battery &lt; 20%</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="toggleBatterySaver" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="section-title">Goals</div>
+      <div class="card">
+        <div class="status-row">
+          <span class="status-key">Daily Steps Goal</span>
+          <input type="number" id="stepGoalInput" value="10000" style="width:80px;background:var(--panel2);border:1px solid var(--border);color:var(--text-bright);padding:4px 8px;border-radius:4px;">
+        </div>
+        <div class="status-row">
+          <span class="status-key">Progress</span>
+          <span class="status-val" id="goalStatus">0 / 10000 (0%)</span>
+        </div>
+      </div>
+
+      <div class="section-title">Places</div>
+      <div class="card status-grid" id="placesGrid"></div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="setHomeBtn">Use current location as Home</button>
+        <button class="btn-secondary" id="setWorkBtn">Use current location as Work</button>
+      </div>
+
+      <div class="section-title">System Settings</div>
+      <div class="card">
+        <div class="settings-link" id="btnExportData">
+          <div><div class="lbl">Export Session Diagnostics</div><div class="sub">Download JSON state dump</div></div>
+          <div class="chev">→</div>
+        </div>
+        <div class="settings-link" id="btnResetAll">
+          <div><div class="lbl" style="color:var(--red)">Reset SensorMind</div><div class="sub">Clear automations, gestures &amp; local state</div></div>
+          <div class="chev" style="color:var(--red)">→</div>
+        </div>
+      </div>
+
+      <footer class="note">
+        SensorMind runs entirely client-side inside your browser engine. Zero sensor payload is transmitted off device.
+      </footer>
+    </div>
+  </div>
+
+  <nav>
+    <button class="nav-btn active" data-target="view-home"><span>🧭</span><span>Context</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-activity"><span>📊</span><span>Activity</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-automations"><span>⚡</span><span>Rules</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-insights"><span>💡</span><span>Insights</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-sensors"><span>📡</span><span>Sensors</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-settings"><span>⚙️</span><span>Settings</span><span class="nav-dot"></span></button>
+  </nav>
+</div>
+
+<div id="toast">Alert</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  const CONFIG = {
+    ACTIVITY_THRESHOLDS: {
+      STATIONARY_MAX_VAR: 0.06,
+      WALKING_MIN_VAR: 0.06,
+      WALKING_MAX_VAR: 0.4,
+      RUNNING_MIN_VAR: 0.4,
+      RUNNING_MAX_VAR: 1.5,
+      VEHICLE_SPEED_MIN: 28,
+      CYCLING_SPEED_MIN: 10,
+      CYCLING_SPEED_MAX: 28,
+      PUBLIC_TRANSPORT_SPEED_MIN: 15,
+      PUBLIC_TRANSPORT_SPEED_MAX: 45,
+      STEP_PEAK_MIN: 1.2,
+      STEP_PEAK_MAX: 2.0,
+      STEP_INTERVAL_MIN: 300,
+      SHAKE_THRESHOLD: 2.5,
+      FALL_THRESHOLD: 3.2
+    },
+    MAX_HISTORY: 60,
+    TICK_INTERVAL: 100,
+    SLOW_TICK_INTERVAL: 1500,
+    BATTERY_SAVER_THRESHOLD: 20,
+    SIM_TIMEOUT: 3000,
+    STEP_GOAL_DEFAULT: 10000
+  };
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  const state = {
+    isLive: false,
+    isSim: false,
+    dnr: false,
+    batterySaver: true,
+    currentActivity: 'Stationary',
+    confidence: 95,
+    mode: 'NORMAL',
+    accel: { x: 0, y: 0, z: 9.81, mag: 1.0, history: [] },
+    gyro: { alpha: 0, beta: 0, gamma: 0 },
+    orientation: { alpha: 0, beta: 0, gamma: 0 },
+    shakeIntensity: 0,
+    steps: 0,
+    _lastStepTime: 0,
+    speed: 0,
+    battery: { level: 100, charging: false, available: false },
+    network: { type: '4g', rtt: 50, available: false },
+    light: { val: 'N/A', available: false },
+    screen: { state: 'Active', orientation: 'portrait-primary' },
+    timeline: [],
+    activityCounts: { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 },
+    activityDurations: { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 },
+    activityStartTime: Date.now(),
+    places: { home: null, work: null },
+    automations: [],
+    automationHistory: [],
+    gestures: [],
+    recordingGesture: null,
+    recordedSamples: [],
+    quality: 'High',
+    overrideMode: 'auto',
+    fallTriggered: false,
+    _tickCounter: 0,
+    _simulationInterval: null,
+    _realSensorsActive: false,
+    sensorHealth: {
+      accel: { quality: 0, lastUpdate: 0, stale: true },
+      gyro: { quality: 0, lastUpdate: 0, stale: true },
+      gps: { quality: 0, lastUpdate: 0, stale: true }
+    },
+    confidenceHistory: [],
+    _suggested: {},
+    stepGoal: CONFIG.STEP_GOAL_DEFAULT,
+    debug: false
+  };
+
+  // ============================================================
+  // STORAGE ENGINE (In-Memory with IndexedDB fallback)
+  // ============================================================
+  const StorageEngine = {
+    _db: null,
+    _memFallback: true,
+    _memStore: {},
+
+    init() {
+      return new Promise((resolve) => {
+        if (!('indexedDB' in window)) {
+          this._memFallback = true;
+          resolve(false);
+          return;
+        }
+        try {
+          const req = indexedDB.open('sensormind_db', 2);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            ['automations', 'automation_history', 'gestures', 'places', 'preferences'].forEach(s => {
+              if (!db.objectStoreNames.contains(s)) {
+                db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
+              }
+            });
+          };
+          req.onsuccess = (e) => {
+            this._db = e.target.result;
+            this._memFallback = false;
+            resolve(true);
+          };
+          req.onerror = () => {
+            this._memFallback = true;
+            resolve(false);
+          };
+        } catch (e) {
+          this._memFallback = true;
+          resolve(false);
+        }
+      });
+    },
+
+    _getStore(store) {
+      if (!this._memStore[store]) this._memStore[store] = [];
+      return this._memStore[store];
+    },
+
+    _nextId() {
+      return Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    },
+
+    add(store, data) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).add(data);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        const items = this._getStore(store);
+        const record = { ...data, id: this._nextId() };
+        items.push(record);
+        resolve(record.id);
+      });
+    },
+
+    getAll(store) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readonly');
+            const req = tx.objectStore(store).getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        resolve(this._getStore(store));
+      });
+    },
+
+    delete(store, id) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).delete(id);
+            req.onsuccess = () => resolve(true);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        const items = this._getStore(store);
+        const idx = items.findIndex(i => i.id === id);
+        if (idx >= 0) items.splice(idx, 1);
+        resolve(true);
+      });
+    },
+
+    clear(store) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).clear();
+            req.onsuccess = () => resolve(true);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        if (this._memStore[store]) this._memStore[store] = [];
+        resolve(true);
+      });
+    },
+
+    isMemFallback() { return this._memFallback; }
+  };
+
+  // ============================================================
+  // UI HELPERS
+  // ============================================================
+  const $ = id => document.getElementById(id);
+
+  function showToast(msg) {
+    const toast = $('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function fmt(n, d) { return (n === null || n === undefined || isNaN(n)) ? '–' : n.toFixed(d); }
+
+  function nowLabel() {
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
+  }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000, toRad = x => x * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.getAttribute('data-target');
+      $(target).classList.add('active');
+    });
+  });
+
+  // ============================================================
+  // ACTIVITY ENGINE
+  // ============================================================
+  function getVariance(arr) {
+    if (arr.length < 2) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+  }
+
+  function classifyActivity(mag, variance, speed) {
+    if (speed > CONFIG.ACTIVITY_THRESHOLDS.VEHICLE_SPEED_MIN) {
+      return { activity: 'Vehicle', confidence: 95 };
+    }
+    if (speed > CONFIG.ACTIVITY_THRESHOLDS.PUBLIC_TRANSPORT_SPEED_MIN &&
+        speed < CONFIG.ACTIVITY_THRESHOLDS.PUBLIC_TRANSPORT_SPEED_MAX &&
+        variance < 0.1 && variance > 0.01) {
+      return { activity: 'Public Transport', confidence: 70 };
+    }
+    if (speed > CONFIG.ACTIVITY_THRESHOLDS.CYCLING_SPEED_MIN &&
+        speed < CONFIG.ACTIVITY_THRESHOLDS.CYCLING_SPEED_MAX &&
+        variance > 0.01 && variance < 0.1) {
+      return { activity: 'Cycling', confidence: 85 };
+    }
+    if (variance > CONFIG.ACTIVITY_THRESHOLDS.RUNNING_MIN_VAR &&
+        variance < CONFIG.ACTIVITY_THRESHOLDS.RUNNING_MAX_VAR) {
+      const conf = Math.min(98, Math.round(variance * 120) + 20);
+      return { activity: 'Running', confidence: clamp(conf, 70, 98) };
+    }
+    if (variance > CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR &&
+        variance < CONFIG.ACTIVITY_THRESHOLDS.WALKING_MAX_VAR) {
+      const conf = Math.min(95, Math.round(variance * 350) + 20);
+      return { activity: 'Walking', confidence: clamp(conf, 60, 95) };
+    }
+    return { activity: 'Stationary', confidence: 92 };
+  }
+
+  // ============================================================
+  // SENSOR MANAGER
+  // ============================================================
+  function initSensors() {
+    state.isLive = true;
+    $('gate').classList.add('hidden');
+
+    if ('DeviceMotionEvent' in window) {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission()
+          .then(res => { if (res === 'granted') listenMotion(); else enableSimMode('Motion permission denied'); })
+          .catch(() => enableSimMode('Motion access error'));
+      } else {
+        listenMotion();
+      }
+    } else {
+      enableSimMode('DeviceMotionEvent unsupported');
+    }
+
+    if ('DeviceOrientationEvent' in window) {
+      window.addEventListener('deviceorientation', e => {
+        state.orientation = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
+      });
+    }
+
+    if ('getBattery' in navigator) {
+      navigator.getBattery().then(batt => {
+        state.battery.available = true;
+        const updateBatt = () => {
+          state.battery.level = Math.round(batt.level * 100);
+          state.battery.charging = batt.charging;
+          if (state.battery.level < 20 && !state.battery.charging) triggerAutomation('BatteryLow');
+          if (batt.charging) triggerAutomation('ChargingStart');
+        };
+        updateBatt();
+        batt.addEventListener('levelchange', updateBatt);
+        batt.addEventListener('chargingchange', updateBatt);
+      }).catch(() => state.battery.available = false);
+    }
+
+    if ('connection' in navigator) {
+      state.network.available = true;
+      const updateNet = () => {
+        state.network.type = navigator.connection.effectiveType || 'wifi';
+        state.network.rtt = navigator.connection.rtt || 50;
+      };
+      updateNet();
+      navigator.connection.addEventListener('change', updateNet);
+    }
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition(
+        pos => {
+          state.speed = Math.round((pos.coords.speed || 0) * 3.6);
+          state.sensorHealth.gps.quality = 0.85;
+          state.sensorHealth.gps.lastUpdate = Date.now();
+          state.sensorHealth.gps.stale = false;
+          if (state.places.home && pos.coords) {
+            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
+            if (d < 150) { /* At home */ }
+          }
+        },
+        () => { state.speed = 0; },
+        { enableHighAccuracy: true }
+      );
+    }
+
+    if ('AmbientLightSensor' in window) {
+      try {
+        const sensor = new AmbientLightSensor();
+        sensor.onreading = () => {
+          state.light.val = sensor.illuminance + ' lux';
+          state.light.available = true;
+        };
+        sensor.start();
+      } catch (e) { state.light.available = false; }
+    }
+
+    startEngine();
+  }
+
+  function listenMotion() {
+    window.addEventListener('devicemotion', e => {
+      if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') return;
+      const acc = e.accelerationIncludingGravity || e.acceleration;
+      if (!acc || acc.x === null) return;
+
+      state._realSensorsActive = true;
+      state.sensorHealth.accel.quality = 0.92;
+      state.sensorHealth.accel.lastUpdate = Date.now();
+      state.sensorHealth.accel.stale = false;
+
+      const x = acc.x || 0;
+      const y = acc.y || 0;
+      const z = acc.z || 0;
+      const mag = Math.sqrt(x * x + y * y + z * z) / 9.81;
+
+      state.accel.x = x;
+      state.accel.y = y;
+      state.accel.z = z;
+      state.accel.mag = mag;
+
+      processAccel(mag);
+    });
+  }
+
+  function enableSimMode(reason) {
+    if (state._realSensorsActive) return;
+    state.isSim = true;
+    $('simBanner').classList.add('show');
+    showToast(`Simulation mode: ${reason}`);
+    if (!state._simulationInterval) {
+      state._simulationInterval = setInterval(runSimulationLoop, CONFIG.TICK_INTERVAL);
+    }
+  }
+
+  // ============================================================
+  // SIMULATION ENGINE
+  // ============================================================
+  function runSimulationLoop() {
+    if (!state.isSim && state.overrideMode === 'auto') return;
+
+    const time = Date.now() * 0.003;
+    let baseMag = 1.0;
+
+    let act = state.currentActivity;
+    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
+      act = state.overrideMode;
+    }
+
+    switch (act) {
+      case 'Walking': baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1; break;
+      case 'Running': baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15; break;
+      case 'Vehicle': baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04; break;
+      case 'Cycling': baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05; break;
+      case 'Public Transport': baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08; break;
+      default: baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
+    }
+
+    state.accel.x = Math.sin(time) * 0.5;
+    state.accel.y = Math.cos(time) * 0.5;
+    state.accel.z = baseMag * 9.81;
+    state.accel.mag = baseMag;
+
+    switch (act) {
+      case 'Vehicle': state.speed = 45 + Math.random() * 20; break;
+      case 'Cycling': state.speed = 18 + Math.random() * 8; break;
+      case 'Running': state.speed = 9 + Math.random() * 3; break;
+      case 'Walking': state.speed = 4 + Math.random() * 2; break;
+      case 'Public Transport': state.speed = 25 + Math.random() * 10; break;
+      default: state.speed = 0;
+    }
+
+    processAccel(baseMag);
+  }
+
+  // ============================================================
+  // SIGNAL PROCESSING ENGINE
+  // ============================================================
+  function processAccel(mag) {
+    state.accel.history.push(mag);
+    if (state.accel.history.length > CONFIG.MAX_HISTORY) {
+      state.accel.history.shift();
+    }
+
+    if (state.dnr) return;
+
+    const variance = getVariance(state.accel.history.slice(-30));
+
+    // Shake Detection
+    const prevMag = state.accel.history[state.accel.history.length - 2] || mag;
+    const delta = Math.abs(mag - prevMag);
+    state.shakeIntensity = delta;
+    if (delta > CONFIG.ACTIVITY_THRESHOLDS.SHAKE_THRESHOLD) {
+      triggerAutomation('Shake');
+      addTimelineEvent('Shake detected', `Intensity: ${delta.toFixed(2)}g`);
+    }
+
+    // Gesture Recording
+    if (state.recordingGesture) {
+      state.recordedSamples.push(mag);
+    }
+
+    // Fall Detection
+    if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
+      state.fallTriggered = true;
+      setTimeout(() => {
+        const recent = state.accel.history.slice(-10);
+        const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
+        if (Math.abs(avgRest - 1.0) < 0.2) {
+          $('fallModal').classList.add('show');
+          triggerAutomation('Fall');
+          addTimelineEvent('⚠️ Fall detected', 'Impact followed by stillness');
+        }
+        state.fallTriggered = false;
+      }, 1200);
+    }
+
+    // Step Detection
+    if (mag > CONFIG.ACTIVITY_THRESHOLDS.STEP_PEAK_MIN &&
+        mag < CONFIG.ACTIVITY_THRESHOLDS.STEP_PEAK_MAX &&
+        variance > 0.04 &&
+        mag - (state.accel.history[state.accel.history.length - 2] || 0) > 0.05) {
+      const now = Date.now();
+      if ((now - state._lastStepTime) > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN) {
+        state.steps++;
+        state._lastStepTime = now;
+        updateGoalProgress();
+      }
+    }
+
+    // Activity Classification
+    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
+      setActivity(state.overrideMode, 99);
+      return;
+    }
+
+    const result = classifyActivity(mag, variance, state.speed);
+    setActivity(result.activity, result.confidence);
+  }
+
+  function setActivity(newAct, conf) {
+    if (state.dnr) return;
+
+    // Update duration tracking
+    const now = Date.now();
+    const elapsed = (now - state.activityStartTime) / 1000;
+    if (elapsed > 0.5) {
+      state.activityDurations[state.currentActivity] = (state.activityDurations[state.currentActivity] || 0) + elapsed;
+    }
+    state.activityStartTime = now;
+
+    // Smooth confidence
+    if (state.currentActivity === newAct) {
+      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 10);
+    } else {
+      state.confidence = Math.min(conf + 10, 100);
+    }
+    state.confidence = clamp(state.confidence, 10, 100);
+
+    // Track confidence history
+    state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
+    if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
+
+    state.activityCounts[newAct] = (state.activityCounts[newAct] || 0) + 1;
+
+    if (state.currentActivity !== newAct) {
+      const oldAct = state.currentActivity;
+      state.currentActivity = newAct;
+      addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence. Variance: ${getVariance(state.accel.history.slice(-20)).toFixed(4)}`);
+      triggerAutomation(newAct);
+      renderTransitionChart();
+      renderDurationDisplay();
+      detectPatterns();
+    }
+
+    renderDailySummary();
+  }
+
+  // ============================================================
+  // PATTERN DETECTION
+  // ============================================================
+  function detectPatterns() {
+    const events = state.timeline.filter(t => t.label.includes('Activity changed'));
+    const patterns = {};
+    events.forEach(e => {
+      const hour = e.time.split(':')[0];
+      const act = e.label.replace('Activity changed to ', '');
+      const key = `${act}@${hour}`;
+      patterns[key] = (patterns[key] || 0) + 1;
+    });
+
+    const suggestionArea = $('suggestionArea');
+    if (!suggestionArea) return;
+
+    Object.entries(patterns).forEach(([key, count]) => {
+      if (count >= 3 && !state._suggested[key]) {
+        state._suggested[key] = true;
+        const [act, hour] = key.split('@');
+        suggestionArea.innerHTML = `
+          <div class="suggestion-box">
+            <div class="suggest-label" style="color:var(--violet)">Pattern Detected</div>
+            <div class="suggest-text">You frequently start ${act} around ${hour}:00 (${count} times). Create an automation?</div>
+            <div class="suggest-actions">
+              <button class="btn-secondary" onclick="window.createAutomationFromPattern('${act}', '${hour}')">Create</button>
+              <button class="btn-secondary" onclick="document.getElementById('suggestionArea').innerHTML='<div class=\'empty-note\'>Suggestion dismissed.</div>'">Dismiss</button>
+            </div>
+          </div>
+        `;
+      }
+    });
+  }
+
+  window.createAutomationFromPattern = function(act, hour) {
+    const name = `${act} at ${hour}:00`;
+    const rule = {
+      id: Date.now().toString(),
+      name: name,
+      when: act,
+      condType: 'timeAfter',
+      condVal: parseInt(hour),
+      then: 'notify',
+      cooldown: 60,
+      lastRun: 0,
+      active: true
+    };
+    state.automations.push(rule);
+    StorageEngine.add('automations', rule).catch(() => {});
+    renderRules();
+    showToast(`Automation "${name}" created from pattern!`);
+    $('suggestionArea').innerHTML = `<div class="empty-note">Automation created! Check the Rules tab.</div>`;
+  };
+
+  // ============================================================
+  // TIMELINE
+  // ============================================================
+  function addTimelineEvent(label, detail) {
+    if (state.dnr) return;
+    const timeStr = nowLabel();
+    state.timeline.unshift({ label, detail, time: timeStr });
+    if (state.timeline.length > 25) state.timeline.pop();
+    renderTimeline();
+  }
+
+  function renderTimeline() {
+    const container = $('timeline');
+    $('tlCount').textContent = `${state.timeline.length} events`;
+
+    if (state.timeline.length === 0) {
+      container.innerHTML = `<div class="tl-empty">No events detected yet — start moving.</div>`;
+      return;
+    }
+
+    container.innerHTML = state.timeline.map((item, idx) => `
+      <div class="tl-item" onclick="this.querySelector('.tl-detail').classList.toggle('open')">
+        <div class="tl-time">${item.time}</div>
+        <div class="tl-label">${item.label}</div>
+        <div class="tl-detail">${item.detail}</div>
+      </div>
+    `).join('');
+  }
+
+  // ============================================================
+  // AUTOMATION ENGINE
+  // ============================================================
+  function triggerAutomation(triggerType) {
+    const now = Date.now();
+    state.automations.forEach(rule => {
+      if (!rule.active || rule.when !== triggerType) return;
+      if (now - (rule.lastRun || 0) < (rule.cooldown || 30) * 1000) return;
+
+      let condMet = true;
+      if (rule.condType === 'battery') condMet = state.battery.level < Number(rule.condVal);
+      else if (rule.condType === 'confidence') condMet = state.confidence > Number(rule.condVal);
+      else if (rule.condType === 'timeAfter') condMet = new Date().getHours() >= Number(rule.condVal);
+      else if (rule.condType === 'timeBefore') condMet = new Date().getHours() <= Number(rule.condVal);
+
+      if (!condMet) return;
+
+      rule.lastRun = now;
+      executeAction(rule);
+    });
+  }
+
+  function executeAction(rule) {
+    state.automationHistory.unshift({ name: rule.name, time: nowLabel() });
+    if (state.automationHistory.length > 20) state.automationHistory.pop();
+    renderAutomationHistory();
+
+    if (rule.then === 'notify') {
+      showToast(`⚡ ${rule.name}: Triggered!`);
+      addTimelineEvent(`⚡ ${rule.name}`, 'Automation notification');
+    } else if (rule.then === 'mode') {
+      state.mode = 'REST';
+      $('currentModeVal').textContent = 'REST';
+      showToast(`System Mode updated to REST by rule`);
+      addTimelineEvent(`Mode → REST`, `Automation: ${rule.name}`);
+    } else if (rule.then === 'track') {
+      showToast(`Tracking session started for ${rule.name}`);
+      addTimelineEvent(`Tracking started`, rule.name);
+    } else if (rule.then === 'record') {
+      addTimelineEvent(`Rule Execution`, rule.name);
+    }
+  }
+
+  function renderRules() {
+    const list = $('ruleList');
+    $('ruleCount').textContent = `${state.automations.filter(a => a.active).length} active`;
+
+    if (state.automations.length === 0) {
+      list.innerHTML = `<div class="empty-note">No automations yet — create one above.</div>`;
+      return;
+    }
+
+    list.innerHTML = state.automations.map(r => `
+      <div class="rule">
+        <div class="rule-head">
+          <div>
+            <div class="rule-text"><b>${r.name}</b></div>
+            <div class="rule-when">WHEN <b>${r.when}</b></div>
+            <div class="rule-when">THEN → <b>${r.then}</b></div>
+            ${r.condType !== 'none' ? `<div class="rule-when">IF → ${r.condType} ${r.condVal}</div>` : ''}
+          </div>
+          <label class="switch">
+            <input type="checkbox" ${r.active ? 'checked' : ''} data-rule-id="${r.id}">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="rule-actions">
+          <button class="chip-btn" data-rule-id="${r.id}" data-action="test">Test</button>
+          <button class="chip-btn danger" data-rule-id="${r.id}" data-action="delete">Delete</button>
+        </div>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const r = state.automations.find(x => x.id === cb.dataset.ruleId);
+        if (r) r.active = cb.checked;
+        renderRules();
+        StorageEngine.add('automations', r).catch(() => {});
+      });
+    });
+
+    list.querySelectorAll('[data-action="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.automations = state.automations.filter(x => x.id !== btn.dataset.ruleId);
+        renderRules();
+      });
+    });
+
+    list.querySelectorAll('[data-action="test"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = state.automations.find(x => x.id === btn.dataset.ruleId);
+        if (r) {
+          showToast(`Testing: ${r.name}`);
+          const oldAct = state.currentActivity;
+          setActivity(r.when, 90);
+          setTimeout(() => setActivity(oldAct, 90), 2000);
+        }
+      });
+    });
+  }
+
+  function renderAutomationHistory() {
+    const container = $('autoHistory');
+    if (state.automationHistory.length === 0) {
+      container.innerHTML = `<div class="empty-note">No automations have run yet.</div>`;
+      return;
+    }
+    container.innerHTML = state.automationHistory.slice(0, 10).map(h => `
+      <div class="status-row">
+        <span class="status-key">${h.name}</span>
+        <span class="status-val">${h.time}</span>
+      </div>
+    `).join('');
+  }
+
+  // ============================================================
+  // EXPORT/IMPORT RULES
+  // ============================================================
+  function exportRules() {
+    const data = state.automations.map(({ name, when, condType, condVal, then, cooldown, active }) =>
+      ({ name, when, condType, condVal, then, cooldown, active })
+    );
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sensormind-rules-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Rules exported!');
+  }
+
+  function importRules(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const rules = JSON.parse(e.target.result);
+        if (!Array.isArray(rules)) throw new Error('Invalid format');
+        rules.forEach(r => {
+          state.automations.push({
+            ...r,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+            lastRun: 0
+          });
+        });
+        renderRules();
+        showToast(`Imported ${rules.length} rules`);
+      } catch (err) {
+        showToast('Invalid rules file');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ============================================================
+  // GESTURE ENGINE
+  // ============================================================
+  function renderGestures() {
+    $('gestureCount').textContent = `${state.gestures.length} saved`;
+    const list = $('gestureList');
+    if (state.gestures.length === 0) {
+      list.innerHTML = `<div class="empty-note">No gestures saved.</div>`;
+      return;
+    }
+    list.innerHTML = state.gestures.map(g => `
+      <div class="status-row">
+        <span class="status-key">${g.name} (${g.samples || 0} pts)</span>
+        <span class="status-val good">${g.action}</span>
+      </div>
+    `).join('');
+  }
+
+  // ============================================================
+  // UI RENDER LOOP
+  // ============================================================
+  function renderUI() {
+    const emojis = { Stationary: '🪑', Walking: '🚶', Running: '🏃', Vehicle: '🚗', Cycling: '🚴', 'Public Transport': '🚌' };
+    $('contextEmoji').textContent = emojis[state.currentActivity] || '🧭';
+    $('contextName').textContent = state.currentActivity;
+    $('contextConf').textContent = `${Math.round(state.confidence)}% confidence`;
+    $('scopeVal').textContent = `${state.accel.mag.toFixed(2)} g`;
+
+    $('contextMetrics').innerHTML = `
+      <div class="cm"><span class="cm-label">Mag</span><span class="cm-value">${state.accel.mag.toFixed(2)}g</span></div>
+      <div class="cm"><span class="cm-label">Speed</span><span class="cm-value">${state.speed} km/h</span></div>
+      <div class="cm"><span class="cm-label">Steps</span><span class="cm-value">${state.steps}</span></div>
+      <div class="cm"><span class="cm-label">Shake</span><span class="cm-value">${state.shakeIntensity.toFixed(2)}</span></div>
+    `;
+
+    const variance = getVariance(state.accel.history.slice(-20));
+    $('whyPanel').innerHTML = `
+      <div><span>Accel Variance:</span><span>${variance.toFixed(4)}</span></div>
+      <div><span>GPS Speed:</span><span>${state.speed} km/h</span></div>
+      <div><span>Device Tilt:</span><span>X:${Math.round(state.orientation.beta)}° Y:${Math.round(state.orientation.gamma)}°</span></div>
+      <div><span>Sampling Mode:</span><span>${state.isSim ? 'Simulated' : 'Real Hardware'}</span></div>
+      <div><span>Sensor Health:</span><span>Accel ${state.sensorHealth.accel.stale ? '⚠️' : '✅'} Gyro ${state.sensorHealth.gyro.stale ? '⚠️' : '✅'}</span></div>
+    `;
+
+    $('statusGrid').innerHTML = `
+      <div class="status-row"><span class="status-key">Battery</span><span class="status-val ${state.battery.level < 20 ? 'warn' : 'good'}">${state.battery.available ? state.battery.level + '%' : 'N/A'}</span></div>
+      <div class="status-row"><span class="status-key">Charging</span><span class="status-val">${state.battery.available ? (state.battery.charging ? 'Yes' : 'No') : 'N/A'}</span></div>
+      <div class="status-row"><span class="status-key">Network</span><span class="status-val">${state.network.available ? state.network.type.toUpperCase() : 'N/A'}</span></div>
+      <div class="status-row"><span class="status-key">Orientation</span><span class="status-val">${window.innerHeight > window.innerWidth ? 'Portrait' : 'Landscape'}</span></div>
+    `;
+
+    $('envGrid').innerHTML = `
+      <div class="status-row"><span class="status-key">Light Level</span><span class="status-val">${state.light.val}</span></div>
+      <div class="status-row"><span class="status-key">Motion State</span><span class="status-val">${state.accel.mag > 1.2 ? 'Active' : 'Resting'}</span></div>
+    `;
+
+    const sensors = [
+      { name: 'Accelerometer', active: state.isLive, val: `${fmt(state.accel.x, 2)}, ${fmt(state.accel.y, 2)}, ${fmt(state.accel.z, 2)}` },
+      { name: 'Gyroscope', active: state.isLive, val: `${Math.round(state.orientation.alpha)}°` },
+      { name: 'Geolocation', active: state.speed > 0 || state.isLive, val: `${state.speed} km/h` },
+      { name: 'Battery Status', active: state.battery.available, val: `${state.battery.level}%` },
+      { name: 'Network Info', active: state.network.available, val: state.network.type },
+      { name: 'Ambient Light', active: state.light.available, val: state.light.val },
+      { name: 'Screen State', active: true, val: state.screen.state },
+      { name: 'Device Motion', active: state.isLive, val: 'Enabled' }
+    ];
+
+    $('sensorCount').textContent = `${sensors.filter(s => s.active).length}/${sensors.length}`;
+    $('sensorFullGrid').innerHTML = sensors.map(s => `
+      <div class="sensor-card ${s.active ? '' : 'unavailable'}">
+        <div class="sensor-card-head">
+          <span class="sensor-name">${s.name}</span>
+          <span class="sensor-status-tag ${s.active ? 'tag-active' : 'tag-unavailable'}">${s.active ? 'ACTIVE' : 'OFF'}</span>
+        </div>
+        <div class="sensor-readout"><b>${s.val}</b></div>
+      </div>
+    `).join('');
+
+    $('playShake').textContent = state.shakeIntensity.toFixed(2);
+    const dot = $('tiltDot');
+    if (dot) {
+      const clampX = clamp(state.orientation.gamma, -45, 45);
+      const clampY = clamp(state.orientation.beta, -45, 45);
+      dot.style.transform = `translate(calc(-50% + ${clampX}px), calc(-50% + ${clampY}px))`;
+      $('tiltVals').textContent = `X ${Math.round(state.orientation.beta)}° · Y ${Math.round(state.orientation.gamma)}°`;
+    }
+    $('playMove').textContent = `${state.currentActivity} (${state.accel.mag.toFixed(2)}g)`;
+
+    const totalTicks = Object.values(state.activityCounts).reduce((a, b) => a + b, 1);
+    $('activityBars').innerHTML = Object.entries(state.activityCounts).map(([act, count]) => {
+      const pct = Math.round((count / totalTicks) * 100);
+      const colors = { Stationary: 'var(--text-dim)', Walking: 'var(--amber)', Running: 'var(--red)', Vehicle: 'var(--teal)', Cycling: 'var(--violet)', 'Public Transport': 'var(--teal)' };
+      return `
+        <div class="activity-bar-row">
+          <span class="ab-label">${act}</span>
+          <div class="ab-track"><div class="ab-fill" style="width:${pct}%;background:${colors[act] || 'var(--amber)'};"></div></div>
+          <span class="ab-val">${pct}%</span>
+        </div>
+      `;
+    }).join('');
+
+    $('statTransitions').textContent = state.timeline.filter(t => t.label.includes('Activity changed')).length;
+    $('statSteps').textContent = state.steps;
+
+    // Active time calculation
+    const activeTime = Object.entries(state.activityDurations)
+      .filter(([k]) => k !== 'Stationary')
+      .reduce((s, [, v]) => s + v, 0);
+    const activeMins = Math.round(activeTime / 60);
+    $('statActiveTime').textContent = activeMins + 'm';
+
+    // Longest period
+    const longest = Object.entries(state.activityDurations).sort((a, b) => b[1] - a[1])[0];
+    $('statLongest').textContent = longest ? `${Math.round(longest[1] / 60)}m ${longest[0]}` : '—';
+
+    // Insights
+    const dominant = Object.keys(state.activityCounts).reduce((a, b) => state.activityCounts[a] > state.activityCounts[b] ? a : b);
+    $('insightMovement').textContent = `Dominant activity: ${dominant}. ${state.steps} steps detected.`;
+    $('insightTravel').textContent = state.speed > 0 ? `Moving at ${state.speed} km/h (max speed).` : `No significant travel logged yet.`;
+
+    // Pattern Grid
+    const patternLabels = { 'Stationary': 'Resting', 'Walking': 'Walking', 'Running': 'Running', 'Vehicle': 'Driving', 'Cycling': 'Cycling', 'Public Transport': 'Transit' };
+    $('patternGrid').innerHTML = `
+      <div class="status-row"><span class="status-key">Most Common</span><span class="status-val">${patternLabels[dominant] || dominant}</span></div>
+      <div class="status-row"><span class="status-key">Transitions</span><span class="status-val">${state.timeline.filter(t => t.label.includes('Activity changed')).length}</span></div>
+      <div class="status-row"><span class="status-key">Home saved</span><span class="status-val ${state.places.home ? 'good' : 'na'}">${state.places.home ? 'Yes' : 'No'}</span></div>
+      <div class="status-row"><span class="status-key">Work saved</span><span class="status-val ${state.places.work ? 'good' : 'na'}">${state.places.work ? 'Yes' : 'No'}</span></div>
+    `;
+
+    // Storage Status
+    const storageStatus = $('storageStatus');
+    if (storageStatus) {
+      const isMem = StorageEngine.isMemFallback();
+      storageStatus.innerHTML = `Storage: <span class="${isMem ? 'warn' : 'ok'}">${isMem ? 'Memory (session only)' : 'IndexedDB (persistent)'}</span>`;
+    }
+
+    // Confidence History Summary
+    if (state.confidenceHistory.length > 0) {
+      const avg = state.confidenceHistory.reduce((s, h) => s + h.confidence, 0) / state.confidenceHistory.length;
+      $('confHistorySummary').textContent = `${state.confidenceHistory.length} samples, avg ${Math.round(avg)}%`;
+    }
+
+    // Debug
+    if (state.debug) {
+      $('debugRaw').textContent = JSON.stringify({
+        activity: state.currentActivity,
+        confidence: Math.round(state.confidence),
+        accel: { x: fmt(state.accel.x, 2), y: fmt(state.accel.y, 2), z: fmt(state.accel.z, 2), mag: fmt(state.accel.mag, 2) },
+        variance: getVariance(state.accel.history.slice(-20)).toFixed(4),
+        speed: state.speed,
+        steps: state.steps,
+        battery: state.battery,
+        mode: state.mode,
+        overrideMode: state.overrideMode,
+        isSim: state.isSim,
+        dnr: state.dnr,
+        durations: state.activityDurations,
+        sensorHealth: state.sensorHealth,
+        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb'
+      }, null, 2);
+    }
+
+    drawWaveform();
+  }
+
+  // ============================================================
+  // DAILY SUMMARY
+  // ============================================================
+  function renderDailySummary() {
+    const total = Object.values(state.activityCounts).reduce((a, b) => a + b, 1);
+    const top = Object.entries(state.activityCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([act, count]) => `${act}: ${Math.round((count/total)*100)}%`)
+      .join(' · ');
+
+    const activeTime = Object.entries(state.activityDurations)
+      .filter(([k]) => k !== 'Stationary')
+      .reduce((s, [, v]) => s + v, 0);
+
+    $('dailySummary').innerHTML = `
+      <div class="status-row"><span class="status-key">Steps</span><span class="status-val">${state.steps}</span></div>
+      <div class="status-row"><span class="status-key">Active Time</span><span class="status-val">${Math.round(activeTime / 60)} minutes</span></div>
+      <div class="status-row"><span class="status-key">Top Activity</span><span class="status-val">${top || 'No data'}</span></div>
+      <div class="status-row"><span class="status-key">Transitions</span><span class="status-val">${state.timeline.filter(t => t.label.includes('Activity changed')).length}</span></div>
+    `;
+  }
+
+  // ============================================================
+  // DURATION DISPLAY
+  // ============================================================
+  function renderDurationDisplay() {
+    const container = $('durationDisplay');
+    if (!container) return;
+    const entries = Object.entries(state.activityDurations).filter(([, v]) => v > 0);
+    if (entries.length === 0) {
+      container.textContent = 'No activity tracked yet.';
+      return;
+    }
+    container.innerHTML = entries
+      .sort((a, b) => b[1] - a[1])
+      .map(([act, secs]) => {
+        const mins = Math.floor(secs / 60);
+        const remaining = Math.floor(secs % 60);
+        return `<span class="duration-tag">${act}: ${mins}m ${remaining}s</span>`;
+      })
+      .join(' ');
+  }
+
+  // ============================================================
+  // TRANSITION CHART
+  // ============================================================
+  function renderTransitionChart() {
+    const container = $('transitionChart');
+    if (!container) return;
+    const transitions = state.timeline.filter(t => t.label.includes('Activity changed')).slice(0, 20);
+    if (transitions.length === 0) {
+      container.innerHTML = '<span style="font-size:11px;color:var(--text-dim);">No transitions yet</span>';
+      return;
+    }
+    container.innerHTML = transitions.map(t => {
+      const act = t.label.replace('Activity changed to ', '');
+      const cls = act === 'Public Transport' ? 'Public' : act;
+      return `<span class="transition-dot ${cls}" title="${act}"></span>`;
+    }).join('');
+  }
+
+  // ============================================================
+  // GOAL PROGRESS
+  // ============================================================
+  function updateGoalProgress() {
+    const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+    const pct = Math.min(100, Math.round((state.steps / goal) * 100));
+    $('goalProgressText').textContent = `${state.steps} / ${goal} steps`;
+    $('goalPercentText').textContent = `${pct}%`;
+    $('goalFill').style.width = pct + '%';
+    $('goalStatus').textContent = `${state.steps} / ${goal} (${pct}%)`;
+  }
+
+  // ============================================================
+  // WAVEFORM
+  // ============================================================
+  const canvas = $('waveform');
+  const ctx = canvas ? canvas.getContext('2d') : null;
+
+  function drawWaveform() {
+    if (!ctx || !canvas) return;
+    const w = canvas.width = canvas.clientWidth || 300;
+    const h = canvas.height = canvas.clientHeight || 90;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const data = state.accel.history;
+    if (data.length < 2) return;
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#4DD9C4';
+    ctx.lineWidth = 1.5;
+
+    const min = Math.min(0.8, ...data);
+    const max = Math.max(1.2, ...data);
+    const range = max - min || 0.5;
+
+    data.forEach((val, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const norm = clamp((val - min) / range, 0, 1);
+      const y = h - norm * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(107,115,133,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    const baseY = h - clamp((1.0 - min) / range, 0, 1) * h;
+    ctx.moveTo(0, baseY);
+    ctx.lineTo(w, baseY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ============================================================
+  // MAIN LOOP
+  // ============================================================
+  function startEngine() {
+    StorageEngine.getAll('automations').then(autos => {
+      if (autos && autos.length) {
+        state.automations = autos;
+      } else {
+        state.automations = [
+          { id: '1', name: 'Fall Safety Alert', when: 'Fall', condType: 'none', condVal: 0, then: 'notify', cooldown: 30, lastRun: 0, active: true },
+          { id: '2', name: 'Low Battery Auto-Rest', when: 'BatteryLow', condType: 'none', condVal: 0, then: 'mode', cooldown: 60, lastRun: 0, active: true },
+          { id: '3', name: 'Driving Mode', when: 'Vehicle', condType: 'confidence', condVal: 70, then: 'mode', cooldown: 30, lastRun: 0, active: true }
+        ];
+        state.automations.forEach(a => StorageEngine.add('automations', a));
+      }
+      renderRules();
+    }).catch(() => {
+      state.automations = [
+        { id: '1', name: 'Fall Safety Alert', when: 'Fall', condType: 'none', condVal: 0, then: 'notify', cooldown: 30, lastRun: 0, active: true },
+        { id: '2', name: 'Low Battery Auto-Rest', when: 'BatteryLow', condType: 'none', condVal: 0, then: 'mode', cooldown: 60, lastRun: 0, active: true }
+      ];
+      renderRules();
+    });
+
+    StorageEngine.getAll('gestures').then(gs => {
+      if (gs && gs.length) state.gestures = gs;
+      renderGestures();
+    }).catch(() => renderGestures());
+
+    StorageEngine.getAll('places').then(places => {
+      places.forEach(p => {
+        if (p.name === 'Home') state.places.home = { lat: p.lat, lon: p.lon };
+        if (p.name === 'Work') state.places.work = { lat: p.lat, lon: p.lon };
+      });
+      renderPlaces();
+    }).catch(() => renderPlaces());
+
+    renderTimeline();
+    renderAutomationHistory();
+    renderDailySummary();
+    renderDurationDisplay();
+    renderTransitionChart();
+    updateGoalProgress();
+
+    setInterval(() => {
+      if (state.batterySaver && state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD) {
+        state._tickCounter = (state._tickCounter || 0) + 1;
+        if (state._tickCounter % 3 !== 0) return;
+      }
+
+      if (!state._realSensorsActive && !state.isSim && state.isLive) {
+        const age = Date.now() - state.sensorHealth.accel.lastUpdate;
+        if (age > CONFIG.SIM_TIMEOUT) {
+          enableSimMode('No sensor readings for ' + (age / 1000).toFixed(1) + 's');
+        }
+      }
+
+      renderUI();
+
+      if (state.isSim && state._realSensorsActive) {
+        state.isSim = false;
+        $('simBanner').classList.remove('show');
+        if (state._simulationInterval) {
+          clearInterval(state._simulationInterval);
+          state._simulationInterval = null;
+        }
+      }
+
+    }, CONFIG.TICK_INTERVAL);
+
+    setInterval(() => {
+      renderTimeline();
+      renderAutomationHistory();
+      renderRules();
+      renderDailySummary();
+      renderDurationDisplay();
+      updateGoalProgress();
+    }, CONFIG.SLOW_TICK_INTERVAL);
+
+    setTimeout(() => {
+      if (!state._realSensorsActive && !state.isSim && state.isLive) {
+        enableSimMode('No real sensor data received');
+      }
+    }, CONFIG.SIM_TIMEOUT);
+  }
+
+  // ============================================================
+  // PLACES
+  // ============================================================
+  function renderPlaces() {
+    $('placesGrid').innerHTML = `
+      <div class="status-row"><span class="status-key">Home</span><span class="status-val ${state.places.home ? 'good' : 'na'}">${state.places.home ? 'Saved' : 'Not set'}</span></div>
+      <div class="status-row"><span class="status-key">Work</span><span class="status-val ${state.places.work ? 'good' : 'na'}">${state.places.work ? 'Saved' : 'Not set'}</span></div>
+    `;
+  }
+
+  // ============================================================
+  // ASK SENSORMIND (QA)
+  // ============================================================
+  function processQuery() {
+    const q = $('askInput').value.toLowerCase().trim();
+    const ans = $('askAnswer');
+    ans.style.display = 'block';
+
+    if (q.includes('doing') || q.includes('now')) {
+      ans.textContent = `You are currently ${state.currentActivity} with ${Math.round(state.confidence)}% confidence. ${state.steps} steps detected.`;
+    } else if (q.includes('active') || q.includes('today')) {
+      const dominant = Object.keys(state.activityCounts).reduce((a, b) => state.activityCounts[a] > state.activityCounts[b] ? a : b);
+      ans.textContent = `Logged ${state.timeline.length} events. Dominant activity: ${dominant}. ${state.steps} steps.`;
+    } else if (q.includes('sensors')) {
+      ans.textContent = `Accelerometer${state.isLive ? ' ✅' : ' ❌'}, Gyroscope ${state.isLive ? '✅' : '❌'}, Network ${state.network.available ? '✅' : '❌'}. (${state.isSim ? 'Simulated' : 'Hardware Direct'})`;
+    } else if (q.includes('automation')) {
+      ans.textContent = `${state.automationHistory.length} automation executions logged this session. ${state.automations.filter(a => a.active).length} rules active.`;
+    } else if (q.includes('battery')) {
+      ans.textContent = `Battery: ${state.battery.level}% ${state.battery.charging ? '(charging)' : '(not charging)'}`;
+    } else if (q.includes('step') || q.includes('walk')) {
+      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}`;
+    } else if (q.includes('duration') || q.includes('time')) {
+      const durations = Object.entries(state.activityDurations)
+        .filter(([, v]) => v > 0)
+        .map(([act, secs]) => `${act}: ${Math.round(secs / 60)}m`)
+        .join(', ');
+      ans.textContent = `Activity durations: ${durations || 'No data yet'}.`;
+    } else {
+      ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g.`;
+    }
+  }
+
+  // ============================================================
+  // EVENT BINDINGS
+  // ============================================================
+
+  // Enable Button
+  $('enableBtn').addEventListener('click', () => {
+    StorageEngine.init().then(() => initSensors());
+  });
+
+  // Why Button
+  $('whyBtn').addEventListener('click', () => $('whyPanel').classList.toggle('open'));
+
+  // Suggest Dismiss
+  $('suggestDismiss').addEventListener('click', () => $('suggestCard').style.display = 'none');
+
+  // Fall Modal
+  $('fallOk').addEventListener('click', () => {
+    $('fallModal').classList.remove('show');
+    showToast('Fall alert dismissed');
+  });
+  $('fallHelp').addEventListener('click', () => {
+    $('fallModal').classList.remove('show');
+    showToast('Emergency response triggered (Simulated)');
+    addTimelineEvent('🚨 EMERGENCY', 'Fall assistance request issued.');
+  });
+
+  // Mode Buttons
+  ['modeNormal', 'modeRest', 'modeWalk'].forEach(id => {
+    $(id).addEventListener('click', () => {
+      const modeMap = { modeNormal: 'NORMAL', modeRest: 'REST', modeWalk: 'WALKING' };
+      state.mode = modeMap[id];
+      $('currentModeVal').textContent = state.mode;
+      showToast(`Mode switched to ${state.mode}`);
+      addTimelineEvent(`Mode changed to ${state.mode}`, 'Manual switch');
+    });
+  });
+
+  // Automation Builder
+  $('bCreate').addEventListener('click', () => {
+    const name = $('bName').value.trim() || 'Custom Rule';
+    const when = $('bWhen').value;
+    const condType = $('bCondType').value;
+    const condVal = $('bCondVal').value || 0;
+    const then = $('bThen').value;
+    const cooldown = Number($('bCooldown').value) || 30;
+
+    const rule = {
+      id: Date.now().toString(),
+      name, when, condType, condVal, then, cooldown, lastRun: 0, active: true
+    };
+
+    state.automations.push(rule);
+    StorageEngine.add('automations', rule).catch(() => {});
+    renderRules();
+    showToast(`Rule "${name}" created!`);
+    $('bName').value = '';
+  });
+
+  // Export/Import Rules
+  $('exportRulesBtn').addEventListener('click', exportRules);
+  $('importRulesBtn').addEventListener('click', () => $('importRulesFile').click());
+  $('importRulesFile').addEventListener('change', (e) => {
+    if (e.target.files[0]) importRules(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  // Ask Button
+  $('askBtn').addEventListener('click', processQuery);
+  document.querySelectorAll('.ask-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      $('askInput').value = chip.getAttribute('data-q');
+      processQuery();
+    });
+  });
+
+  // Settings
+  $('toggleDNR').addEventListener('change', e => {
+    state.dnr = e.target.checked;
+    $('dnrBanner').classList.toggle('show', state.dnr);
+    showToast(state.dnr ? 'Do Not Record enabled' : 'Logging resumed');
+  });
+
+  $('toggleBatterySaver').addEventListener('change', e => {
+    state.batterySaver = e.target.checked;
+    showToast(state.batterySaver ? 'Battery saver enabled' : 'Battery saver disabled');
+  });
+
+  $('btnClearHistory').addEventListener('click', () => {
+    state.timeline = [];
+    state.automationHistory = [];
+    state.activityCounts = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
+    state.activityDurations = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
+    state.steps = 0;
+    state.confidenceHistory = [];
+    state._suggested = {};
+    renderTimeline();
+    renderAutomationHistory();
+    renderDailySummary();
+    renderDurationDisplay();
+    renderTransitionChart();
+    updateGoalProgress();
+    showToast('Session data cleared');
+  });
+
+  $('btnExportData').addEventListener('click', () => {
+    const data = {
+      timestamp: new Date().toISOString(),
+      state: {
+        currentActivity: state.currentActivity,
+        confidence: state.confidence,
+        steps: state.steps,
+        speed: state.speed,
+        battery: state.battery,
+        timeline: state.timeline,
+        automations: state.automations,
+        automationHistory: state.automationHistory,
+        gestures: state.gestures,
+        activityCounts: state.activityCounts,
+        activityDurations: state.activityDurations,
+        confidenceHistory: state.confidenceHistory.slice(-20)
+      }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sensormind-session-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  $('btnResetAll').addEventListener('click', () => {
+    if (confirm('Reset all SensorMind settings and custom rules?')) {
+      if (confirm('This will delete all data. Are you sure?')) {
+        StorageEngine.clear('automations');
+        StorageEngine.clear('gestures');
+        StorageEngine.clear('places');
+        location.reload();
+      }
+    }
+  });
+
+  // Places
+  $('setHomeBtn').addEventListener('click', () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        state.places.home = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        StorageEngine.add('places', { name: 'Home', lat: pos.coords.latitude, lon: pos.coords.longitude }).catch(() => {});
+        renderPlaces();
+        showToast('Home location saved');
+      }, () => showToast('Could not get location'));
+    }
+  });
+
+  $('setWorkBtn').addEventListener('click', () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        state.places.work = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        StorageEngine.add('places', { name: 'Work', lat: pos.coords.latitude, lon: pos.coords.longitude }).catch(() => {});
+        renderPlaces();
+        showToast('Work location saved');
+      }, () => showToast('Could not get location'));
+    }
+  });
+
+  // Step Goal
+  $('stepGoalInput').addEventListener('change', (e) => {
+    state.stepGoal = Math.max(100, parseInt(e.target.value) || CONFIG.STEP_GOAL_DEFAULT);
+    updateGoalProgress();
+    showToast(`Step goal set to ${state.stepGoal}`);
+  });
+
+  // Reset Patterns
+  $('resetPatternsBtn').addEventListener('click', () => {
+    state.activityCounts = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
+    state.activityDurations = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
+    state._suggested = {};
+    showToast('Patterns reset');
+    renderDailySummary();
+    renderDurationDisplay();
+  });
+
+  // Gesture Recording
+  $('gestStart').addEventListener('click', () => {
+    const name = $('gestName').value.trim() || 'Custom Gesture';
+    const duration = Number($('gestDuration').value);
+    const action = $('gestAction').value;
+
+    state.recordingGesture = name;
+    state.recordedSamples = [];
+    $('gestStatus').textContent = `Recording... Move your phone now! (${duration / 1000}s)`;
+
+    setTimeout(() => {
+      state.recordingGesture = null;
+      const count = state.recordedSamples.length;
+      if (count > 5) {
+        state.gestures.push({ name, duration, action, samples: count, createdAt: Date.now() });
+        StorageEngine.add('gestures', { name, duration, action, samples: count, createdAt: Date.now() }).catch(() => {});
+        $('gestStatus').textContent = `Saved gesture "${name}" with ${count} motion samples.`;
+        renderGestures();
+        showToast(`Gesture "${name}" saved!`);
+      } else {
+        $('gestStatus').textContent = `Recording too short (${count} samples). Try again.`;
+        showToast('Gesture recording too short');
+      }
+    }, duration);
+  });
+
+  // Sensor Lab
+  let labData = [];
+  let labRecording = false;
+
+  $('labStart').addEventListener('click', () => {
+    if (labRecording) return;
+    const dur = Number($('labDuration').value);
+    labData = [];
+    labRecording = true;
+    $('labStatus').textContent = `Recording... 0/${dur}s`;
+
+    let elapsed = 0;
+    const interval = setInterval(() => {
+      elapsed++;
+      labData.push({
+        t: Date.now(),
+        ax: state.accel.x,
+        ay: state.accel.y,
+        az: state.accel.z,
+        mag: state.accel.mag,
+        speed: state.speed
+      });
+      $('labStatus').textContent = `Recording... ${elapsed}/${dur}s (${labData.length} samples)`;
+      if (elapsed >= dur) {
+        clearInterval(interval);
+        labRecording = false;
+        $('labStatus').textContent = `Done. ${labData.length} samples captured.`;
+        showToast('Sensor recording complete');
+      }
+    }, 1000);
+  });
+
+  $('labExportCsv').addEventListener('click', () => {
+    if (!labData.length) { showToast('No recording to export'); return; }
+    const header = 'timestamp,ax,ay,az,mag,speed\n';
+    const rows = labData.map(r => `${r.t},${r.ax.toFixed(3)},${r.ay.toFixed(3)},${r.az.toFixed(3)},${r.mag.toFixed(3)},${r.speed}`).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sensormind-lab-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  $('labExportJson').addEventListener('click', () => {
+    if (!labData.length) { showToast('No recording to export'); return; }
+    const blob = new Blob([JSON.stringify(labData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sensormind-lab-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Simulation Controls
+  $('simOverride').addEventListener('change', e => {
+    state.overrideMode = e.target.value;
+    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
+      setActivity(state.overrideMode, 95);
+      if (!state.isSim) enableSimMode(`Activity forced to ${state.overrideMode}`);
+    } else if (state.overrideMode === 'auto' && state.isSim) {
+      state.isSim = false;
+      $('simBanner').classList.remove('show');
+      if (state._simulationInterval) {
+        clearInterval(state._simulationInterval);
+        state._simulationInterval = null;
+      }
+      showToast('Returning to auto-detect mode');
+    } else if (state.overrideMode === 'forceSim') {
+      enableSimMode('Force simulation mode');
+    }
+  });
+
+  $('triggerFallSim').addEventListener('click', () => {
+    state.accel.history.push(4.2);
+    processAccel(4.2);
+    showToast('Fall impact simulated');
+  });
+
+  $('triggerShakeSim').addEventListener('click', () => {
+    state.accel.history.push(3.0);
+    processAccel(3.0);
+    showToast('Shake simulated');
+  });
+
+  // Debug Toggle
+  $('debugToggle').addEventListener('change', e => {
+    state.debug = e.target.checked;
+    if (!state.debug) {
+      $('debugRaw').textContent = 'Enable the toggle above to stream raw → fused → classified values each tick.';
+    }
+  });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  state.currentActivity = 'Stationary';
+  state.confidence = 95;
+  state.accel.history = new Array(20).fill(1.0);
+
+  renderUI();
+  renderTimeline();
+  renderRules();
+  renderAutomationHistory();
+  renderGestures();
+  renderPlaces();
+  renderDailySummary();
+  renderDurationDisplay();
+  renderTransitionChart();
+  updateGoalProgress();
+
+  console.log('SensorMind v2.0 initialized. Click "Enable Sensors" to start.');
+  console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
+
+})();
+</script>
+</body>
+</html>
