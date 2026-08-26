@@ -1372,8 +1372,15 @@
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         pos => {
-          state.speed = Math.round((pos.coords.speed || 0) * 3.6);
-          state.sensorHealth.gps.quality = 0.85;
+          // Only trust speed from a reasonably accurate fix - a poor/noisy GPS fix can report
+          // spurious high speed values (common mid-walk, indoors, or near buildings) which would
+          // otherwise feed straight into activity classification and get misread as Cycling/Vehicle.
+          const accuracy = pos.coords.accuracy;
+          const goodFix = !accuracy || accuracy <= CONFIG.GPS_ACCURACY_THRESHOLD;
+          if (goodFix) {
+            state.speed = Math.round((pos.coords.speed || 0) * 3.6);
+          }
+          state.sensorHealth.gps.quality = goodFix ? 0.85 : 0.4;
           state.sensorHealth.gps.lastUpdate = Date.now();
           state.sensorHealth.gps.stale = false;
           state._lastGpsUpdate = Date.now();
@@ -1702,6 +1709,7 @@
         features.stepFrequency >= 40 && features.stepFrequency <= 135) {
         scores.Walking += 0.55;
         if (features.stepFrequency > 60) scores.Walking += 0.15;
+        scores.Walking += 0.25; // confirmed footstep cadence is a stronger, more direct signal than GPS speed alone
       }
       if (features.speed !== null && features.speed > 1.5 && features.speed < 8) scores.Walking += 0.25;
       if (features.gyroVariance > 2 && features.gyroVariance < 20) scores.Walking += 0.05;
@@ -1711,10 +1719,13 @@
       }
       if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
 
-      if (features.speed !== null && features.speed > 10 && features.speed <= 28) scores.Cycling += 0.55;
+      // Cycling has no walking-style footstep cadence, so require a low stepFrequency here too -
+      // otherwise a noisy/jumpy GPS speed reading during an actual walk (common indoors or in
+      // areas with poor signal) can push speed into this range and outscore real step data.
+      if (features.speed !== null && features.speed > 10 && features.speed <= 28 && features.stepFrequency < 20) scores.Cycling += 0.55;
       if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) scores.Cycling += 0.15;
 
-      if (features.speed !== null && features.speed > 28) {
+      if (features.speed !== null && features.speed > 28 && features.stepFrequency < 20) {
         scores.Vehicle += Math.min(0.75, features.speed / 70);
       }
       if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
