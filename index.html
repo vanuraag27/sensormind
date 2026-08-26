@@ -393,7 +393,7 @@
 
     <!-- Daily Summary Card -->
     <div class="card" style="margin:8px 20px 0;">
-      <div class="section-title" style="margin:0 0 8px;">Today's Summary <small>session</small></div>
+      <div class="section-title" style="margin:0 0 8px;">Today's Summary <small>persistent</small></div>
       <div class="status-grid" id="dailySummary"></div>
     </div>
 
@@ -663,6 +663,10 @@
           <span class="status-key">Calibration</span>
           <span class="status-val" id="calibrationStatusSmall">Not calibrated</span>
         </div>
+        <div class="status-row">
+          <span class="status-key">Session Count</span>
+          <span class="status-val" id="sessionCountDisplay">0</span>
+        </div>
       </div>
       <pre id="debugRaw">Enable the toggle above to stream raw → fused → classified values each tick.</pre>
     </div>
@@ -741,6 +745,10 @@
           <div><div class="lbl">Export Session Diagnostics</div><div class="sub">Download JSON state dump</div></div>
           <div class="chev">→</div>
         </div>
+        <div class="settings-link" id="btnExportEverything">
+          <div><div class="lbl">Export Everything</div><div class="sub">Complete backup including places, calibration, and settings</div></div>
+          <div class="chev">→</div>
+        </div>
         <div class="settings-link" id="btnResetAll">
           <div><div class="lbl" style="color:var(--red)">Reset SensorMind</div><div class="sub">Clear automations, gestures &amp; local state</div></div>
           <div class="chev" style="color:var(--red)">→</div>
@@ -748,7 +756,7 @@
       </div>
 
       <footer class="note">
-        SensorMind runs entirely client-side inside your browser engine. Zero sensor payload is transmitted off device.
+        SensorMind runs entirely client-side inside your browser engine. Sensor data is processed locally and is not uploaded by SensorMind.
       </footer>
     </div>
   </div>
@@ -775,20 +783,23 @@
   const CONFIG = {
     ACTIVITY_THRESHOLDS: {
       STATIONARY_MAX_VAR: 0.06,
-      WALKING_MIN_VAR: 0.06,
+      WALKING_MIN_VAR: 0.04,
       WALKING_MAX_VAR: 0.4,
-      RUNNING_MIN_VAR: 0.4,
+      RUNNING_MIN_VAR: 0.35,
       RUNNING_MAX_VAR: 1.5,
       VEHICLE_SPEED_MIN: 28,
       CYCLING_SPEED_MIN: 10,
       CYCLING_SPEED_MAX: 28,
       PUBLIC_TRANSPORT_SPEED_MIN: 15,
       PUBLIC_TRANSPORT_SPEED_MAX: 45,
-      STEP_PEAK_MIN: 1.2,
-      STEP_PEAK_MAX: 2.0,
-      STEP_INTERVAL_MIN: 300,
+      STEP_PEAK_MIN: 1.15,
+      STEP_PEAK_MAX: 2.2,
+      STEP_INTERVAL_MIN: 250,
+      STEP_INTERVAL_MAX: 2200,
       SHAKE_THRESHOLD: 2.5,
-      FALL_THRESHOLD: 3.2
+      FALL_THRESHOLD: 3.2,
+      MIN_CADENCE: 20,
+      MAX_CADENCE: 240
     },
     MAX_HISTORY: 60,
     TICK_INTERVAL: 100,
@@ -796,12 +807,16 @@
     BATTERY_SAVER_THRESHOLD: 20,
     SIM_TIMEOUT: 3000,
     STEP_GOAL_DEFAULT: 10000,
-    CONFIRMATION_DELAY: 3000, // 3 seconds for activity confirmation
-    SESSION_SAVE_INTERVAL: 30000 // 30 seconds between session saves
+    CONFIRMATION_DELAY: 2000,
+    SESSION_SAVE_INTERVAL: 30000,
+    MIN_STEPS_PER_SESSION: 3,
+    GPS_JUMP_MAX_KMH: 120,
+    GPS_ACCURACY_THRESHOLD: 50,
+    PLACE_RADIUS: 150
   };
 
   // ============================================================
-  // STATE
+  // STATE - Fixed with stepTimes and proper session tracking
   // ============================================================
   const state = {
     isLive: false,
@@ -809,7 +824,7 @@
     dnr: false,
     batterySaver: true,
     currentActivity: 'Stationary',
-    confidence: 95,
+    confidence: 85,
     mode: 'NORMAL',
     accel: { x: 0, y: 0, z: 9.81, mag: 1.0, history: [] },
     gyro: { a: 0, b: 0, c: 0, history: [] },
@@ -817,13 +832,13 @@
     shakeIntensity: 0,
     steps: 0,
     _lastStepTime: 0,
+    _stepTimes: [], // FIXED: stepTimes array for cadence calculation
     speed: 0,
     battery: { level: 100, charging: false, available: false },
     network: { type: '4g', rtt: 50, available: false },
     light: { val: 'N/A', available: false },
     screen: { state: 'Active', orientation: 'portrait-primary' },
     timeline: [],
-    activityCounts: { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 },
     activityDurations: { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 },
     activityStartTime: Date.now(),
     places: { home: null, work: null },
@@ -847,16 +862,21 @@
     _suggested: {},
     stepGoal: CONFIG.STEP_GOAL_DEFAULT,
     debug: false,
-    _lastActivitySound: '',
-    _soundCooldown: 0,
     _calibrated: false,
     _calibrationBaseline: null,
-    _stepConfidence: 0,
-    _sessionId: null,
+    _sessionStartSteps: 0,
+    _sessionStartDistance: 0,
+    _currentSession: null,
+    _sessions: [],
     _lastSessionSave: 0,
-    _previousLocation: null,
     _totalDistance: 0,
-    _activityDistances: {}
+    _activityDistances: {},
+    _wasHome: false,
+    _wasWork: false,
+    _goalReached: false,
+    _suggestionsShown: false,
+    _lastGpsUpdate: 0,
+    _gpsFilteredSpeed: 0
   };
 
   // ============================================================
@@ -865,8 +885,6 @@
   const SoundEngine = {
     enabled: true,
     ctx: null,
-    _walkingInterval: null,
-    _isWalking: false,
     _lastStepSound: 0,
     _fallSoundPlayed: false,
 
@@ -884,23 +902,19 @@
       const now = Date.now();
       if (now - this._lastStepSound < 150) return;
       this._lastStepSound = now;
-
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain);
         gain.connect(this.ctx.destination);
-
         osc.type = 'sine';
         osc.frequency.setValueAtTime(180 + Math.random() * 60, this.ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.06);
-
         gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
-
         osc.start(this.ctx.currentTime);
         osc.stop(this.ctx.currentTime + 0.06);
-      } catch (e) { /* ignore audio errors */ }
+      } catch (e) { /* ignore */ }
     },
 
     playRunStep() {
@@ -908,23 +922,19 @@
       const now = Date.now();
       if (now - this._lastStepSound < 100) return;
       this._lastStepSound = now;
-
       try {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain);
         gain.connect(this.ctx.destination);
-
         osc.type = 'sine';
         osc.frequency.setValueAtTime(280 + Math.random() * 80, this.ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.04);
-
         gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
-
         osc.start(this.ctx.currentTime);
         osc.stop(this.ctx.currentTime + 0.04);
-      } catch (e) { /* ignore audio errors */ }
+      } catch (e) { /* ignore */ }
     },
 
     playFall() {
@@ -932,7 +942,6 @@
       if (this._fallSoundPlayed) return;
       this._fallSoundPlayed = true;
       setTimeout(() => { this._fallSoundPlayed = false; }, 3000);
-
       try {
         const bufferSize = this.ctx.sampleRate * 0.4;
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -942,15 +951,12 @@
         }
         const noise = this.ctx.createBufferSource();
         noise.buffer = buffer;
-
         const gain = this.ctx.createGain();
         gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
-
         noise.connect(gain);
         gain.connect(this.ctx.destination);
         noise.start(this.ctx.currentTime);
-
         const osc = this.ctx.createOscillator();
         const g2 = this.ctx.createGain();
         osc.connect(g2);
@@ -962,34 +968,15 @@
         g2.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
         osc.start(this.ctx.currentTime);
         osc.stop(this.ctx.currentTime + 0.3);
-      } catch (e) { /* ignore audio errors */ }
-    },
-
-    startWalkingLoop() {
-      if (this._walkingInterval) return;
-      let stepCount = 0;
-      this._walkingInterval = setInterval(() => {
-        if (!this.enabled) return;
-        stepCount++;
-        this.playStep();
-      }, 450);
-    },
-
-    stopWalkingLoop() {
-      if (this._walkingInterval) {
-        clearInterval(this._walkingInterval);
-        this._walkingInterval = null;
-      }
+      } catch (e) { /* ignore */ }
     },
 
     setEnabled(val) {
       this.enabled = val;
-      if (!val) this.stopWalkingLoop();
     },
 
     toggle() {
       this.enabled = !this.enabled;
-      if (!this.enabled) this.stopWalkingLoop();
       return this.enabled;
     }
   };
@@ -1007,34 +994,16 @@
     vibrate(pattern) {
       if (!this._enabled) return;
       if (!this.isSupported()) return;
-      try {
-        navigator.vibrate(pattern);
-      } catch (e) { /* silently fail */ }
+      try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
     },
 
-    stepGoalReached() {
-      this.vibrate([100, 50, 100, 50, 100]);
-    },
+    stepGoalReached() { this.vibrate([100, 50, 100, 50, 100]); },
+    automationTriggered() { this.vibrate([50]); },
+    fallWarning() { this.vibrate([100, 50, 100, 50, 100, 50, 200]); },
+    gestureDetected() { this.vibrate([30, 30, 30]); },
+    activityChanged() { this.vibrate([20]); },
 
-    automationTriggered() {
-      this.vibrate([50]);
-    },
-
-    fallWarning() {
-      this.vibrate([100, 50, 100, 50, 100, 50, 200]);
-    },
-
-    gestureDetected() {
-      this.vibrate([30, 30, 30]);
-    },
-
-    activityChanged() {
-      this.vibrate([20]);
-    },
-
-    setEnabled(enabled) {
-      this._enabled = enabled;
-    }
+    setEnabled(enabled) { this._enabled = enabled; }
   };
 
   // ============================================================
@@ -1045,10 +1014,7 @@
     _enabled: true,
 
     requestPermission() {
-      if (!('Notification' in window)) {
-        console.warn('Notifications not supported');
-        return Promise.resolve(false);
-      }
+      if (!('Notification' in window)) return Promise.resolve(false);
       if (Notification.permission === 'granted') {
         this._permission = 'granted';
         return Promise.resolve(true);
@@ -1064,11 +1030,7 @@
     },
 
     show(title, body, options = {}) {
-      if (!this._enabled) return;
-      if (this._permission !== 'granted') {
-        console.warn('Notification permission not granted');
-        return;
-      }
+      if (!this._enabled || this._permission !== 'granted') return;
       try {
         const notification = new Notification(title, {
           body: body,
@@ -1077,56 +1039,33 @@
           tag: options.tag || 'sensormind',
           silent: options.silent || false
         });
-        if (options.onClick) {
-          notification.onclick = options.onClick;
-        }
+        if (options.onClick) notification.onclick = options.onClick;
         setTimeout(() => notification.close(), 5000);
-      } catch (e) {
-        console.warn('Notification error:', e);
-      }
+      } catch (e) { /* ignore */ }
     },
 
     showStepGoalReached(steps, goal) {
-      this.show(
-        '🎯 Step Goal Reached!',
-        `${steps} / ${goal} steps - Congratulations!`,
-        { vibrate: [100, 50, 100, 50, 100] }
-      );
+      this.show('🎯 Step Goal Reached!', `${steps} / ${goal} steps - Congratulations!`, { vibrate: [100, 50, 100, 50, 100] });
     },
 
     showActivityDetected(activity, confidence) {
-      this.show(
-        `⚡ ${activity} Detected`,
-        `${activity} with ${confidence}% confidence`,
-        { vibrate: [50] }
-      );
+      this.show(`⚡ ${activity} Detected`, `${activity} with ${confidence}% confidence`, { vibrate: [50] });
     },
 
     showFallAlert() {
-      this.show(
-        '⚠️ Possible Fall Detected',
-        'Are you OK? Tap to dismiss.',
-        { 
-          vibrate: [100, 50, 100, 50, 100, 50, 200],
-          tag: 'fall-alert'
-        }
-      );
+      this.show('⚠️ Possible Fall Detected', 'Are you OK? Tap to dismiss.', { vibrate: [100, 50, 100, 50, 100, 50, 200], tag: 'fall-alert' });
     },
 
-    setEnabled(enabled) {
-      this._enabled = enabled;
-    }
+    setEnabled(enabled) { this._enabled = enabled; }
   };
 
   // ============================================================
-  // IMPROVED ACTIVITY ENGINE
+  // IMPROVED ACTIVITY ENGINE - Independent of step state
   // ============================================================
   const ImprovedActivityEngine = {
-    _buffer: [],
     _confirmedActivity: 'Stationary',
     _candidateActivity: null,
     _candidateStartTime: 0,
-    _candidateConfidence: 0,
     _confirmationDelay: CONFIG.CONFIRMATION_DELAY,
 
     extractFeatures(magHistory, gyroHistory, gpsData) {
@@ -1134,22 +1073,17 @@
       if (recent.length < 5) return null;
 
       const features = {
-        mean: 0,
         variance: 0,
-        rms: 0,
         peak: 0,
         jerk: 0,
         stepFrequency: 0,
         gyroVariance: 0,
         speed: gpsData.speed || 0,
-        speedStability: 0,
-        duration: 0
+        magMean: 0
       };
 
-      features.mean = recent.reduce((a,b) => a+b, 0) / recent.length;
-      const mean = features.mean;
-      features.variance = recent.reduce((s,v) => s + Math.pow(v-mean, 2), 0) / recent.length;
-      features.rms = Math.sqrt(recent.reduce((s,v) => s + v*v, 0) / recent.length);
+      features.magMean = recent.reduce((a,b) => a+b, 0) / recent.length;
+      features.variance = recent.reduce((s,v) => s + Math.pow(v - features.magMean, 2), 0) / recent.length;
       features.peak = Math.max(...recent.map(v => Math.abs(v-1)));
 
       let jerkSum = 0;
@@ -1158,8 +1092,9 @@
       }
       features.jerk = jerkSum / recent.length;
 
-      const stepTimes = state.stepTimes || [];
-      if (stepTimes.length > 2) {
+      // Calculate step frequency from stepTimes
+      const stepTimes = state._stepTimes || [];
+      if (stepTimes.length > 1) {
         const recentSteps = stepTimes.filter(t => Date.now() - t < 10000);
         if (recentSteps.length > 1) {
           features.stepFrequency = (recentSteps.length / 10) * 60;
@@ -1176,7 +1111,7 @@
     },
 
     classify(features) {
-      if (!features) return { activity: 'Unknown', confidence: 0, scores: {} };
+      if (!features) return { activity: 'Stationary', confidence: 50, scores: {} };
 
       const scores = {
         Stationary: 0.04,
@@ -1187,48 +1122,38 @@
         'Public Transport': 0.02
       };
 
-      if (features.variance < 0.0025 && features.stepFrequency < 15 && 
-          (features.speed === null || features.speed < 1.2)) {
+      // Stationary
+      if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
         scores.Stationary += 0.7;
       }
       if (features.gyroVariance < 2) scores.Stationary += 0.15;
 
+      // Walking
       if (features.variance > 0.005 && features.variance < 0.4 &&
           features.stepFrequency >= 40 && features.stepFrequency <= 135) {
         scores.Walking += 0.55;
         if (features.stepFrequency > 60) scores.Walking += 0.15;
       }
-      if (features.speed !== null && features.speed > 1.5 && features.speed < 8) {
-        scores.Walking += 0.25;
-      }
-      if (features.gyroVariance > 2 && features.gyroVariance < 20) {
-        scores.Walking += 0.05;
-      }
+      if (features.speed !== null && features.speed > 1.5 && features.speed < 8) scores.Walking += 0.25;
+      if (features.gyroVariance > 2 && features.gyroVariance < 20) scores.Walking += 0.05;
 
-      if (features.variance > 0.4 && features.variance < 1.5 &&
-          features.stepFrequency > 150) {
+      // Running
+      if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150) {
         scores.Running += 0.6;
       }
-      if (features.speed !== null && features.speed >= 7 && features.speed < 16) {
-        scores.Running += 0.2;
-      }
+      if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
 
-      if (features.speed !== null && features.speed > 10 && features.speed <= 28) {
-        scores.Cycling += 0.55;
-      }
-      if (features.variance > 0.001 && features.variance < 0.02 && 
-          features.stepFrequency < 20) {
-        scores.Cycling += 0.15;
-      }
+      // Cycling
+      if (features.speed !== null && features.speed > 10 && features.speed <= 28) scores.Cycling += 0.55;
+      if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) scores.Cycling += 0.15;
 
+      // Vehicle
       if (features.speed !== null && features.speed > 28) {
         scores.Vehicle += Math.min(0.75, features.speed / 70);
       }
-      if (features.speed !== null && features.speed > 28 && 
-          features.stepFrequency < 10) {
-        scores.Vehicle += 0.15;
-      }
+      if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
 
+      // Public Transport
       if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
           features.peak > 0.5 && features.stepFrequency < 8) {
         scores['Public Transport'] += 0.12;
@@ -1242,8 +1167,7 @@
       const runnerUp = sorted[1] || ['', 0];
 
       const separation = winner[1] - runnerUp[1];
-      const baseConfidence = Math.min(98, winner[1] * 100 + 10);
-      const confidence = Math.min(98, baseConfidence + separation * 20);
+      const confidence = Math.min(98, Math.max(30, (winner[1] * 100 + 10) + separation * 20));
 
       return {
         activity: winner[0],
@@ -1255,7 +1179,7 @@
 
     update(magHistory, gyroHistory, gpsData) {
       const features = this.extractFeatures(magHistory, gyroHistory, gpsData);
-      if (!features) return state.activity;
+      if (!features) return { key: state.currentActivity || 'Stationary', confidence: 50, quality: 'Low' };
 
       const classification = this.classify(features);
       const now = Date.now();
@@ -1264,36 +1188,25 @@
         this._candidateActivity = classification.activity;
         this._candidateStartTime = now;
         this._candidateConfidence = classification.confidence;
-        this._candidateScores = classification.scores;
-        return state.activity;
+        return { key: this._confirmedActivity, confidence: classification.confidence, quality: 'Medium' };
       }
 
-      if (now - this._candidateStartTime > this._confirmationDelay) {
-        if (classification.confidence > 40) {
-          this._confirmedActivity = classification.activity;
-          return {
-            key: classification.activity,
-            confidence: classification.confidence,
-            scores: classification.scores,
-            quality: classification.confidence > 80 ? 'High' : 
-                     classification.confidence > 60 ? 'Medium' : 'Low',
-            features: features
-          };
-        }
+      if (now - this._candidateStartTime > this._confirmationDelay && classification.confidence > 40) {
+        this._confirmedActivity = classification.activity;
+        return {
+          key: classification.activity,
+          confidence: classification.confidence,
+          scores: classification.scores,
+          quality: classification.confidence > 80 ? 'High' : classification.confidence > 60 ? 'Medium' : 'Low'
+        };
       }
 
-      return {
-        key: this._confirmedActivity,
-        confidence: classification.confidence,
-        scores: classification.scores,
-        quality: 'Medium',
-        features: features
-      };
+      return { key: this._confirmedActivity, confidence: classification.confidence, quality: 'Medium' };
     }
   };
 
   // ============================================================
-  // IMPROVED STEP ENGINE
+  // IMPROVED STEP ENGINE - Independent of activity classifier
   // ============================================================
   const ImprovedStepEngine = {
     _buffer: [],
@@ -1303,60 +1216,57 @@
     _stepCount: 0,
     _cadence: 0,
     _confidence: 0,
-    _walkingState: false,
 
     updateBaseline(mag) {
       this._buffer.push(mag);
       if (this._buffer.length > 100) this._buffer.shift();
-      
       if (this._buffer.length > 20) {
         const sorted = [...this._buffer].sort((a,b) => a-b);
         this._baseline = sorted[Math.floor(sorted.length/2)];
         const noise = this._buffer.reduce((s,v) => s + Math.pow(v - this._baseline, 2), 0) / this._buffer.length;
-        this._threshold = Math.max(0.08, Math.min(0.25, Math.sqrt(noise) * 3));
+        this._threshold = Math.max(0.06, Math.min(0.25, Math.sqrt(noise) * 3));
       }
     },
 
     detectStep(mag, timestamp) {
       this.updateBaseline(mag);
-      
-      if (!this._walkingState) return false;
-
       const deviation = Math.abs(mag - this._baseline);
       const history = this._buffer;
-      if (history.length < 3) return false;
-      
+      if (history.length < 3) return null;
+
       const idx = history.length - 1;
       const isValley = mag < history[idx-1] && mag < history[idx-2];
-      
-      if (isValley && deviation > this._threshold) {
+      const isPeak = mag > history[idx-1] && mag > history[idx-2];
+
+      // Detect on valley (trough) for more reliable step detection
+      if ((isValley || isPeak) && deviation > this._threshold) {
         const timeSinceLast = timestamp - this._lastStepTime;
-        
-        if (timeSinceLast > 273 && timeSinceLast < 2000) {
+        if (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
+            timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX) {
           this._stepCount++;
           this._lastStepTime = timestamp;
           this._confidence = Math.min(95, this._confidence + 2);
-          this._cadence = Math.round(60 / (timeSinceLast / 1000));
-          return true;
+          const cadence = Math.round(60 / (timeSinceLast / 1000));
+          this._cadence = cadence;
+
+          // Store step time for cadence calculation
+          state._stepTimes.push(timestamp);
+          if (state._stepTimes.length > 100) state._stepTimes.shift();
+
+          return { step: true, cadence: cadence, confidence: this._confidence };
         }
       }
-      
-      return false;
-    },
 
-    setWalkingState(isWalking) {
-      this._walkingState = isWalking;
-      if (!isWalking) {
-        this._confidence = Math.max(0, this._confidence - 5);
-      }
+      // Decrease confidence slowly when no steps
+      this._confidence = Math.max(0, this._confidence - 0.5);
+      return null;
     },
 
     getStats() {
       return {
         steps: this._stepCount,
         cadence: this._cadence,
-        confidence: Math.min(95, this._confidence),
-        walkingState: this._walkingState
+        confidence: Math.min(95, this._confidence)
       };
     },
 
@@ -1370,7 +1280,7 @@
   };
 
   // ============================================================
-  // SESSION ENGINE
+  // SESSION ENGINE - Fixed with proper state management
   // ============================================================
   const SessionEngine = {
     _currentSession: null,
@@ -1382,7 +1292,11 @@
         id: Date.now(),
         startTime: Date.now(),
         activity: activity,
+        startSteps: state.steps,
+        endSteps: state.steps,
         steps: 0,
+        startDistance: state._totalDistance,
+        endDistance: state._totalDistance,
         distance: 0,
         duration: 0,
         maxSpeed: 0,
@@ -1390,6 +1304,9 @@
         confidence: 0,
         events: []
       };
+      state._currentSession = this._currentSession;
+      state._sessionStartSteps = state.steps;
+      state._sessionStartDistance = state._totalDistance;
       return this._currentSession;
     },
 
@@ -1397,12 +1314,18 @@
       if (!this._currentSession) return null;
       this._currentSession.endTime = Date.now();
       this._currentSession.duration = this._currentSession.endTime - this._currentSession.startTime;
+      this._currentSession.steps = state.steps - this._currentSession.startSteps;
+      this._currentSession.distance = state._totalDistance - this._currentSession.startDistance;
+      if (this._currentSession.steps < CONFIG.MIN_STEPS_PER_SESSION && this._currentSession.duration < 5000) {
+        this._currentSession = null;
+        state._currentSession = null;
+        return null;
+      }
       this._sessions.push(this._currentSession);
-      
       StorageEngine.add('sessions', this._currentSession).catch(() => {});
-      
       const session = this._currentSession;
       this._currentSession = null;
+      state._currentSession = null;
       return session;
     },
 
@@ -1410,35 +1333,30 @@
       if (!this._currentSession) {
         this.startSession(activity);
       }
-      
       const session = this._currentSession;
-      if (session.activity !== activity) {
+      if (session.activity !== activity && state.steps - session.startSteps > 5) {
         this.endSession();
         this.startSession(activity);
+        return;
       }
-      
-      session.steps = Math.max(session.steps, steps);
-      session.maxSpeed = Math.max(session.maxSpeed, speed || 0);
       session.confidence = confidence;
       session.duration = Date.now() - session.startTime;
-      
+      session.maxSpeed = Math.max(session.maxSpeed, speed || 0);
       if (speed) {
         const count = (session._speedCount || 0) + 1;
         session.avgSpeed = ((session.avgSpeed || 0) * (count-1) + speed) / count;
         session._speedCount = count;
       }
-      
+      state._currentSession = session;
       return session;
     },
 
     async getTodaySummary() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
       try {
         const allSessions = await StorageEngine.getAll('sessions');
         const todaySessions = allSessions.filter(s => s.startTime >= today.getTime());
-        
         const summary = {
           date: today,
           totalSteps: 0,
@@ -1447,55 +1365,47 @@
           activities: {},
           sessions: todaySessions
         };
-        
         todaySessions.forEach(s => {
           summary.totalSteps += s.steps || 0;
           summary.totalDistance += s.distance || 0;
           summary.totalDuration += s.duration || 0;
           summary.activities[s.activity] = (summary.activities[s.activity] || 0) + (s.duration || 0);
         });
-        
         this._dailySummary = summary;
         return summary;
-      } catch (e) {
-        return null;
-      }
+      } catch (e) { return null; }
     },
 
     async getWeeklySummary() {
       const weekStart = new Date();
       weekStart.setDate(weekStart.getDate() - 7);
       weekStart.setHours(0, 0, 0, 0);
-      
       try {
         const allSessions = await StorageEngine.getAll('sessions');
         const weekSessions = allSessions.filter(s => s.startTime >= weekStart.getTime());
-        
         const dailyTotals = {};
         weekSessions.forEach(s => {
           const day = new Date(s.startTime).toDateString();
-          if (!dailyTotals[day]) {
-            dailyTotals[day] = { steps: 0, distance: 0, duration: 0 };
-          }
+          if (!dailyTotals[day]) dailyTotals[day] = { steps: 0, distance: 0, duration: 0 };
           dailyTotals[day].steps += s.steps || 0;
           dailyTotals[day].distance += s.distance || 0;
           dailyTotals[day].duration += s.duration || 0;
         });
-        
         return {
           weekStart: weekStart,
           dailyTotals: dailyTotals,
           totalSteps: Object.values(dailyTotals).reduce((s,d) => s + d.steps, 0),
           totalDistance: Object.values(dailyTotals).reduce((s,d) => s + d.distance, 0)
         };
-      } catch (e) {
-        return null;
-      }
-    }
+      } catch (e) { return null; }
+    },
+
+    getCurrentSession() { return this._currentSession; },
+    getSessions() { return this._sessions; }
   };
 
   // ============================================================
-  // DISTANCE TRACKER
+  // DISTANCE TRACKER - With GPS jump filtering
   // ============================================================
   const DistanceTracker = {
     _lastPosition: null,
@@ -1503,38 +1413,26 @@
     _activityDistances: {},
 
     updatePosition(lat, lon, speed, accuracy) {
-      if (accuracy && accuracy > 50) return;
-      
+      if (accuracy && accuracy > CONFIG.GPS_ACCURACY_THRESHOLD) return;
       const now = Date.now();
       const position = { lat, lon, speed, accuracy, timestamp: now };
-      
+
       if (this._lastPosition) {
-        const distance = haversine(
-          this._lastPosition.lat, this._lastPosition.lon,
-          lat, lon
-        );
-        
+        const distance = haversine(this._lastPosition.lat, this._lastPosition.lon, lat, lon);
         const timeDiff = (now - this._lastPosition.timestamp) / 1000;
-        const maxPlausibleSpeed = 100;
-        const maxDistance = (maxPlausibleSpeed / 3.6) * timeDiff;
-        
+        const maxDistance = (CONFIG.GPS_JUMP_MAX_KMH / 3.6) * timeDiff;
+
         if (distance < maxDistance && distance > 0.5) {
           this._totalDistance += distance;
           const activity = state.currentActivity || 'Unknown';
           this._activityDistances[activity] = (this._activityDistances[activity] || 0) + distance;
         }
       }
-      
       this._lastPosition = position;
     },
 
-    getTotalDistance() {
-      return this._totalDistance;
-    },
-
-    getActivityDistance(activity) {
-      return this._activityDistances[activity] || 0;
-    },
+    getTotalDistance() { return this._totalDistance; },
+    getActivityDistance(activity) { return this._activityDistances[activity] || 0; },
 
     reset() {
       this._totalDistance = 0;
@@ -1552,18 +1450,13 @@
 
     async analyze() {
       const suggestions = [];
-      
       const activityPattern = await this.detectActivityPatterns();
       if (activityPattern) {
         suggestions.push({
           type: 'activity_pattern',
           title: `You frequently ${activityPattern.activity} around ${activityPattern.hour}:00`,
           action: 'Create Automation',
-          data: {
-            when: activityPattern.activity,
-            condition: 'timeAfter',
-            value: activityPattern.hour
-          }
+          data: { when: activityPattern.activity, condition: 'timeAfter', value: activityPattern.hour }
         });
       }
 
@@ -1571,7 +1464,6 @@
       if (todaySummary) {
         const goal = state.stepGoal || 10000;
         const progress = (todaySummary.totalSteps / goal) * 100;
-        
         if (progress < 30 && new Date().getHours() > 14) {
           suggestions.push({
             type: 'step_goal',
@@ -1580,7 +1472,6 @@
             data: { goal: goal, current: todaySummary.totalSteps }
           });
         }
-        
         if (progress > 80 && progress < 100) {
           suggestions.push({
             type: 'step_goal_near',
@@ -1591,13 +1482,12 @@
         }
       }
 
-      if (state.currentActivity === 'Stationary' && 
-          state.activityDurations.Stationary > 3600) {
+      if (state.currentActivity === 'Stationary' && (state.activityDurations.Stationary || 0) > 3600) {
         suggestions.push({
           type: 'inactivity',
           title: 'You\'ve been stationary for over an hour',
           action: 'Take a walk',
-          data: { duration: Math.round(state.activityDurations.Stationary / 60) }
+          data: { duration: Math.round((state.activityDurations.Stationary || 0) / 60) }
         });
       }
 
@@ -1609,25 +1499,20 @@
       try {
         const events = await StorageEngine.getAll('events');
         const activityEvents = events.filter(e => e.type === 'activity_started');
-        
         const patterns = {};
         activityEvents.forEach(e => {
           const hour = new Date(e.timestamp).getHours();
           const key = `${e.activity}@${hour}`;
           patterns[key] = (patterns[key] || 0) + 1;
         });
-
         for (const [key, count] of Object.entries(patterns)) {
           if (count >= 3) {
             const [activity, hour] = key.split('@');
             return { activity, hour: parseInt(hour), count };
           }
         }
-        
         return null;
-      } catch (e) {
-        return null;
-      }
+      } catch (e) { return null; }
     },
 
     dismiss(type) {
@@ -1635,9 +1520,7 @@
       this._suggestions = this._suggestions.filter(s => s.type !== type);
     },
 
-    getSuggestions() {
-      return this._suggestions;
-    }
+    getSuggestions() { return this._suggestions; }
   };
 
   // ============================================================
@@ -1645,118 +1528,67 @@
   // ============================================================
   const CalibrationEngine = {
     _calibrated: false,
-    _baseline: {
-      gravity: 9.81,
-      noiseFloor: 0.02,
-      offset: { x: 0, y: 0, z: 0 }
-    },
+    _baseline: { gravity: 9.81, noiseFloor: 0.02, offset: { x: 0, y: 0, z: 0 } },
 
     async startCalibration() {
       showToast('Place phone on flat surface and keep still for 5 seconds');
-      
       const samples = [];
       const duration = 5000;
       const startTime = Date.now();
-      
       return new Promise((resolve) => {
         const handler = (e) => {
           const acc = e.accelerationIncludingGravity || e.acceleration;
           if (!acc || acc.x === null) return;
-          
-          samples.push({
-            x: acc.x || 0,
-            y: acc.y || 0,
-            z: acc.z || 0
-          });
-          
-          const elapsed = Date.now() - startTime;
-          if (elapsed > duration) {
+          samples.push({ x: acc.x || 0, y: acc.y || 0, z: acc.z || 0 });
+          if (Date.now() - startTime > duration) {
             window.removeEventListener('devicemotion', handler);
             resolve(this.calculateBaseline(samples));
           }
         };
-        
         window.addEventListener('devicemotion', handler);
       });
     },
 
     calculateBaseline(samples) {
-      if (samples.length < 10) {
-        showToast('Calibration failed - insufficient samples');
-        return null;
-      }
-
-      const mean = samples.reduce((acc, s) => {
-        acc.x += s.x;
-        acc.y += s.y;
-        acc.z += s.z;
-        return acc;
-      }, { x: 0, y: 0, z: 0 });
-      
-      mean.x /= samples.length;
-      mean.y /= samples.length;
-      mean.z /= samples.length;
-
+      if (samples.length < 10) { showToast('Calibration failed - insufficient samples'); return null; }
+      const mean = samples.reduce((acc, s) => { acc.x += s.x; acc.y += s.y; acc.z += s.z; return acc; }, { x: 0, y: 0, z: 0 });
+      mean.x /= samples.length; mean.y /= samples.length; mean.z /= samples.length;
       const gravity = Math.sqrt(mean.x*mean.x + mean.y*mean.y + mean.z*mean.z);
-      
       const variance = samples.reduce((acc, s) => {
         acc.x += Math.pow(s.x - mean.x, 2);
         acc.y += Math.pow(s.y - mean.y, 2);
         acc.z += Math.pow(s.z - mean.z, 2);
         return acc;
       }, { x: 0, y: 0, z: 0 });
-      
-      variance.x /= samples.length;
-      variance.y /= samples.length;
-      variance.z /= samples.length;
-      
+      variance.x /= samples.length; variance.y /= samples.length; variance.z /= samples.length;
       const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
-
-      this._baseline = {
-        gravity: gravity,
-        noiseFloor: noise,
-        offset: {
-          x: mean.x,
-          y: mean.y,
-          z: mean.z
-        }
-      };
-      
+      this._baseline = { gravity, noiseFloor: noise, offset: { x: mean.x, y: mean.y, z: mean.z } };
       this._calibrated = true;
       this.updateThresholds();
-      
       showToast('Calibration complete!');
       return this._baseline;
     },
 
     updateThresholds() {
       const noise = this._baseline.noiseFloor;
-      CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 100);
-      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 150);
+      CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 80);
+      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 120);
     },
 
-    getBaseline() {
-      return this._baseline;
-    },
-
-    isCalibrated() {
-      return this._calibrated;
-    },
+    isCalibrated() { return this._calibrated; },
 
     reset() {
       this._calibrated = false;
-      this._baseline = {
-        gravity: 9.81,
-        noiseFloor: 0.02,
-        offset: { x: 0, y: 0, z: 0 }
-      };
+      this._baseline = { gravity: 9.81, noiseFloor: 0.02, offset: { x: 0, y: 0, z: 0 } };
       CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = 0.06;
-      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.06;
-    }
+      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.04;
+    },
+
+    getBaseline() { return this._baseline; }
   };
 
   // ============================================================
-  // STORAGE ENGINE (IndexedDB)
+  // STORAGE ENGINE - With put/update support
   // ============================================================
   const StorageEngine = {
     _db: null,
@@ -1765,46 +1597,23 @@
 
     init() {
       return new Promise((resolve) => {
-        if (!('indexedDB' in window)) {
-          this._memFallback = true;
-          resolve(false);
-          return;
-        }
+        if (!('indexedDB' in window)) { this._memFallback = true; resolve(false); return; }
         try {
-          const req = indexedDB.open('sensormind_db', 3);
+          const req = indexedDB.open('sensormind_db', 4);
           req.onupgradeneeded = (e) => {
             const db = e.target.result;
-            const stores = ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities'];
-            stores.forEach(s => {
-              if (!db.objectStoreNames.contains(s)) {
-                db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
-              }
+            ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities'].forEach(s => {
+              if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
             });
           };
-          req.onsuccess = (e) => {
-            this._db = e.target.result;
-            this._memFallback = false;
-            resolve(true);
-          };
-          req.onerror = () => {
-            this._memFallback = true;
-            resolve(false);
-          };
-        } catch (e) {
-          this._memFallback = true;
-          resolve(false);
-        }
+          req.onsuccess = (e) => { this._db = e.target.result; this._memFallback = false; resolve(true); };
+          req.onerror = () => { this._memFallback = true; resolve(false); };
+        } catch (e) { this._memFallback = true; resolve(false); }
       });
     },
 
-    _getStore(store) {
-      if (!this._memStore[store]) this._memStore[store] = [];
-      return this._memStore[store];
-    },
-
-    _nextId() {
-      return Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-    },
+    _getStore(store) { if (!this._memStore[store]) this._memStore[store] = []; return this._memStore[store]; },
+    _nextId() { return Date.now() + '_' + Math.random().toString(36).substr(2, 6); },
 
     add(store, data) {
       if (!this._memFallback && this._db) {
@@ -1825,6 +1634,26 @@
       });
     },
 
+    // FIXED: put/update method for automations
+    put(store, data) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).put(data);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        const items = this._getStore(store);
+        const idx = items.findIndex(i => i.id === data.id);
+        if (idx >= 0) { items[idx] = data; } else { items.push(data); }
+        resolve(data.id);
+      });
+    },
+
     getAll(store) {
       if (!this._memFallback && this._db) {
         return new Promise((resolve, reject) => {
@@ -1836,9 +1665,7 @@
           } catch (e) { reject(e); }
         });
       }
-      return new Promise((resolve) => {
-        resolve(this._getStore(store));
-      });
+      return new Promise((resolve) => { resolve(this._getStore(store)); });
     },
 
     delete(store, id) {
@@ -1871,10 +1698,7 @@
           } catch (e) { reject(e); }
         });
       }
-      return new Promise((resolve) => {
-        if (this._memStore[store]) this._memStore[store] = [];
-        resolve(true);
-      });
+      return new Promise((resolve) => { if (this._memStore[store]) this._memStore[store] = []; resolve(true); });
     },
 
     isMemFallback() { return this._memFallback; }
@@ -1933,7 +1757,6 @@
     $('gate').classList.add('hidden');
     SoundEngine.init();
 
-    // Request notification permission
     NotificationSystem.requestPermission().then(() => {
       NotificationSystem.setEnabled(document.getElementById('toggleNotifications').checked);
     });
@@ -1988,35 +1811,33 @@
           state.sensorHealth.gps.quality = 0.85;
           state.sensorHealth.gps.lastUpdate = Date.now();
           state.sensorHealth.gps.stale = false;
-          
-          // Update distance
+          state._lastGpsUpdate = Date.now();
+
           if (pos.coords.latitude && pos.coords.longitude) {
-            DistanceTracker.updatePosition(
-              pos.coords.latitude, pos.coords.longitude,
-              state.speed, pos.coords.accuracy
-            );
+            DistanceTracker.updatePosition(pos.coords.latitude, pos.coords.longitude, state.speed, pos.coords.accuracy);
           }
-          
+
+          // Place detection with transition tracking
           if (state.places.home && pos.coords) {
-            const d = haversine(pos.coords.latitude, pos.coords.longitude, 
-              state.places.home.lat, state.places.home.lon);
-            if (d < 150) {
+            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
+            if (d < CONFIG.PLACE_RADIUS && !state._wasHome) {
               triggerAutomation('ArriveHome');
-            } else if (state._wasHome && d > 200) {
+              state._wasHome = true;
+            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasHome) {
               triggerAutomation('LeaveHome');
+              state._wasHome = false;
             }
-            state._wasHome = d < 150;
           }
-          
+
           if (state.places.work && pos.coords) {
-            const d = haversine(pos.coords.latitude, pos.coords.longitude,
-              state.places.work.lat, state.places.work.lon);
-            if (d < 150) {
+            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.work.lat, state.places.work.lon);
+            if (d < CONFIG.PLACE_RADIUS && !state._wasWork) {
               triggerAutomation('ArriveWork');
-            } else if (state._wasWork && d > 200) {
+              state._wasWork = true;
+            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasWork) {
               triggerAutomation('LeaveWork');
+              state._wasWork = false;
             }
-            state._wasWork = d < 150;
           }
         },
         () => { state.speed = 0; },
@@ -2027,10 +1848,7 @@
     if ('AmbientLightSensor' in window) {
       try {
         const sensor = new AmbientLightSensor();
-        sensor.onreading = () => {
-          state.light.val = sensor.illuminance + ' lux';
-          state.light.available = true;
-        };
+        sensor.onreading = () => { state.light.val = sensor.illuminance + ' lux'; state.light.available = true; };
         sensor.start();
       } catch (e) { state.light.available = false; }
     }
@@ -2059,11 +1877,13 @@
       state.accel.z = z;
       state.accel.mag = mag;
 
-      // Store gyro history
       const rr = e.rotationRate;
       if (rr && rr.alpha !== null) {
         state.gyro.history.push({ a: rr.alpha || 0, b: rr.beta || 0, c: rr.gamma || 0 });
         if (state.gyro.history.length > 100) state.gyro.history.shift();
+        state.sensorHealth.gyro.quality = 0.85;
+        state.sensorHealth.gyro.lastUpdate = Date.now();
+        state.sensorHealth.gyro.stale = false;
       }
 
       processAccel(mag);
@@ -2085,14 +1905,10 @@
   // ============================================================
   function runSimulationLoop() {
     if (!state.isSim && state.overrideMode === 'auto') return;
-
     const time = Date.now() * 0.003;
     let baseMag = 1.0;
-
     let act = state.currentActivity;
-    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
-      act = state.overrideMode;
-    }
+    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') act = state.overrideMode;
 
     switch (act) {
       case 'Walking': baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1; break;
@@ -2121,14 +1937,11 @@
   }
 
   // ============================================================
-  // SIGNAL PROCESSING ENGINE
+  // SIGNAL PROCESSING ENGINE - Fixed circular dependency
   // ============================================================
   function processAccel(mag) {
     state.accel.history.push(mag);
-    if (state.accel.history.length > CONFIG.MAX_HISTORY) {
-      state.accel.history.shift();
-    }
-
+    if (state.accel.history.length > CONFIG.MAX_HISTORY) state.accel.history.shift();
     if (state.dnr) return;
 
     const variance = getVariance(state.accel.history.slice(-30));
@@ -2144,9 +1957,7 @@
     }
 
     // Gesture Recording
-    if (state.recordingGesture) {
-      state.recordedSamples.push(mag);
-    }
+    if (state.recordingGesture) state.recordedSamples.push(mag);
 
     // Fall Detection
     if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
@@ -2154,7 +1965,6 @@
       SoundEngine.playFall();
       VibrationEngine.fallWarning();
       NotificationSystem.showFallAlert();
-      
       setTimeout(() => {
         const recent = state.accel.history.slice(-10);
         const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
@@ -2167,18 +1977,14 @@
       }, 1200);
     }
 
-    // Step Detection
+    // Step Detection - Independent of activity
     const stepResult = ImprovedStepEngine.detectStep(mag, Date.now());
     if (stepResult) {
       state.steps++;
       updateGoalProgress();
-      
-      if (state.currentActivity === 'Running') {
-        SoundEngine.playRunStep();
-      } else if (state.currentActivity === 'Walking') {
-        SoundEngine.playStep();
-      }
-      
+      if (state.currentActivity === 'Running') SoundEngine.playRunStep();
+      else if (state.currentActivity === 'Walking') SoundEngine.playStep();
+
       // Check step goal
       const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
       if (state.steps >= goal && !state._goalReached) {
@@ -2189,16 +1995,7 @@
       }
     }
 
-    // Update walking state
-    const isWalking = state.currentActivity === 'Walking' || state.currentActivity === 'Running';
-    ImprovedStepEngine.setWalkingState(isWalking);
-    if (isWalking && SoundEngine.enabled) {
-      SoundEngine.startWalkingLoop();
-    } else {
-      SoundEngine.stopWalkingLoop();
-    }
-
-    // Activity Classification
+    // Activity Classification - Uses stepFrequency from _stepTimes
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
       setActivity(state.overrideMode, 99);
       return;
@@ -2209,9 +2006,9 @@
       state.gyro.history,
       { speed: state.speed }
     );
-    
+
     if (result && result.key) {
-      setActivity(result.key, result.confidence || 90);
+      setActivity(result.key, result.confidence || 85);
     }
   }
 
@@ -2232,7 +2029,7 @@
     state.activityStartTime = now;
 
     if (state.currentActivity === newAct) {
-      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 10);
+      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 5);
     } else {
       state.confidence = Math.min(conf + 10, 100);
     }
@@ -2240,8 +2037,6 @@
 
     state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
     if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
-
-    state.activityCounts[newAct] = (state.activityCounts[newAct] || 0) + 1;
 
     const oldAct = state.currentActivity;
 
@@ -2252,21 +2047,26 @@
       renderTransitionChart();
       renderDurationDisplay();
       detectPatterns();
-      
+
       // End session and start new one
       SessionEngine.endSession();
       SessionEngine.startSession(newAct);
-      
-      // Vibrate on activity change
+
       VibrationEngine.activityChanged();
-      
-      // Notification for activity change
       if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
         NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
       }
     }
 
+    // Update session
+    SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
+
     renderDailySummary();
+    renderDurationDisplay();
+
+    // Update session count display
+    const sessionCount = $('sessionCountDisplay');
+    if (sessionCount) sessionCount.textContent = SessionEngine._sessions.length;
   }
 
   // ============================================================
@@ -2337,12 +2137,10 @@
   function renderTimeline() {
     const container = $('timeline');
     $('tlCount').textContent = `${state.timeline.length} events`;
-
     if (state.timeline.length === 0) {
       container.innerHTML = `<div class="tl-empty">No events detected yet — start moving.</div>`;
       return;
     }
-
     container.innerHTML = state.timeline.map((item, idx) => `
       <div class="tl-item" onclick="this.querySelector('.tl-detail').classList.toggle('open')">
         <div class="tl-time">${item.time}</div>
@@ -2353,7 +2151,7 @@
   }
 
   // ============================================================
-  // AUTOMATION ENGINE
+  // AUTOMATION ENGINE - Fixed persistence
   // ============================================================
   function triggerAutomation(triggerType) {
     const now = Date.now();
@@ -2389,6 +2187,8 @@
       showToast(`System Mode updated to REST by rule`);
       addTimelineEvent(`Mode → REST`, `Automation: ${rule.name}`);
     } else if (rule.then === 'track') {
+      // FIXED: Actually start a session
+      SessionEngine.startSession(state.currentActivity);
       showToast(`Tracking session started for ${rule.name}`);
       addTimelineEvent(`Tracking started`, rule.name);
     } else if (rule.then === 'record') {
@@ -2403,7 +2203,7 @@
       exportData();
       showToast(`📤 Data exported`);
     }
-    
+
     VibrationEngine.automationTriggered();
   }
 
@@ -2440,15 +2240,21 @@
     list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', () => {
         const r = state.automations.find(x => x.id === cb.dataset.ruleId);
-        if (r) r.active = cb.checked;
-        renderRules();
-        StorageEngine.add('automations', r).catch(() => {});
+        if (r) {
+          r.active = cb.checked;
+          // FIXED: Use put instead of add
+          StorageEngine.put('automations', r).catch(() => {});
+          renderRules();
+        }
       });
     });
 
     list.querySelectorAll('[data-action="delete"]').forEach(btn => {
       btn.addEventListener('click', () => {
-        state.automations = state.automations.filter(x => x.id !== btn.dataset.ruleId);
+        const id = btn.dataset.ruleId;
+        state.automations = state.automations.filter(x => x.id !== id);
+        // FIXED: Actually delete from IndexedDB
+        StorageEngine.delete('automations', id).catch(() => {});
         renderRules();
       });
     });
@@ -2481,7 +2287,7 @@
   }
 
   // ============================================================
-  // EXPORT/IMPORT RULES
+  // EXPORT FUNCTIONS
   // ============================================================
   function exportRules() {
     const data = state.automations.map(({ name, when, condType, condVal, then, cooldown, active }) =>
@@ -2519,9 +2325,6 @@
     reader.readAsText(file);
   }
 
-  // ============================================================
-  // EXPORT DATA
-  // ============================================================
   function exportData() {
     const data = {
       timestamp: new Date().toISOString(),
@@ -2535,10 +2338,9 @@
         automations: state.automations,
         automationHistory: state.automationHistory,
         gestures: state.gestures,
-        activityCounts: state.activityCounts,
         activityDurations: state.activityDurations,
         distance: DistanceTracker.getTotalDistance(),
-        sessions: state._sessions || []
+        sessions: SessionEngine._sessions
       }
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2548,6 +2350,37 @@
     a.download = `sensormind-session-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportEverything() {
+    Promise.all([
+      StorageEngine.getAll('automations'),
+      StorageEngine.getAll('gestures'),
+      StorageEngine.getAll('places'),
+      StorageEngine.getAll('sessions'),
+      StorageEngine.getAll('events'),
+      StorageEngine.getAll('activities')
+    ]).then(([automations, gestures, places, sessions, events, activities]) => {
+      const data = {
+        timestamp: new Date().toISOString(),
+        version: '3.1',
+        automations, gestures, places, sessions, events, activities,
+        calibration: CalibrationEngine.getBaseline(),
+        preferences: {
+          stepGoal: state.stepGoal,
+          batterySaver: state.batterySaver,
+          dnr: state.dnr
+        }
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sensormind-backup-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Full backup exported!');
+    }).catch(() => showToast('Export failed'));
   }
 
   // ============================================================
@@ -2592,6 +2425,7 @@
       <div><span>Device Tilt:</span><span>X:${Math.round(state.orientation.beta)}° Y:${Math.round(state.orientation.gamma)}°</span></div>
       <div><span>Sampling Mode:</span><span>${state.isSim ? 'Simulated' : 'Real Hardware'}</span></div>
       <div><span>Sensor Health:</span><span>Accel ${state.sensorHealth.accel.stale ? '⚠️' : '✅'} Gyro ${state.sensorHealth.gyro.stale ? '⚠️' : '✅'}</span></div>
+      <div><span>Step Cadence:</span><span>${ImprovedStepEngine._cadence} spm</span></div>
     `;
 
     $('statusGrid').innerHTML = `
@@ -2608,7 +2442,7 @@
 
     const sensors = [
       { name: 'Accelerometer', active: state.isLive, val: `${fmt(state.accel.x, 2)}, ${fmt(state.accel.y, 2)}, ${fmt(state.accel.z, 2)}` },
-      { name: 'Gyroscope', active: state.isLive, val: `${Math.round(state.orientation.alpha)}°` },
+      { name: 'Gyroscope', active: state.isLive, val: `${Math.round(state.gyro.a)}°/s` },
       { name: 'Geolocation', active: state.speed > 0 || state.isLive, val: `${state.speed} km/h` },
       { name: 'Battery Status', active: state.battery.available, val: `${state.battery.level}%` },
       { name: 'Network Info', active: state.network.available, val: state.network.type },
@@ -2638,10 +2472,11 @@
     }
     $('playMove').textContent = `${state.currentActivity} (${state.accel.mag.toFixed(2)}g)`;
 
-    const totalTicks = Object.values(state.activityCounts).reduce((a, b) => a + b, 1);
-    $('activityBars').innerHTML = Object.entries(state.activityCounts).map(([act, count]) => {
-      const pct = Math.round((count / totalTicks) * 100);
-      const colors = { Stationary: 'var(--text-dim)', Walking: 'var(--amber)', Running: 'var(--red)', Vehicle: 'var(--teal)', Cycling: 'var(--violet)', 'Public Transport': 'var(--teal)' };
+    // Activity Bars - FIXED: using duration instead of counts
+    const totalDuration = Object.values(state.activityDurations).reduce((a, b) => a + b, 1);
+    const colors = { Stationary: 'var(--text-dim)', Walking: 'var(--amber)', Running: 'var(--red)', Vehicle: 'var(--teal)', Cycling: 'var(--violet)', 'Public Transport': 'var(--teal)' };
+    $('activityBars').innerHTML = Object.entries(state.activityDurations).map(([act, dur]) => {
+      const pct = Math.round((dur / totalDuration) * 100);
       return `
         <div class="activity-bar-row">
           <span class="ab-label">${act}</span>
@@ -2657,22 +2492,19 @@
     const activeTime = Object.entries(state.activityDurations)
       .filter(([k]) => k !== 'Stationary')
       .reduce((s, [, v]) => s + v, 0);
-    const activeMins = Math.round(activeTime / 60);
-    $('statActiveTime').textContent = activeMins + 'm';
+    $('statActiveTime').textContent = Math.round(activeTime / 60) + 'm';
 
     const longest = Object.entries(state.activityDurations).sort((a, b) => b[1] - a[1])[0];
     $('statLongest').textContent = longest ? `${Math.round(longest[1] / 60)}m ${longest[0]}` : '—';
 
-    // Distance
     const distanceKm = DistanceTracker.getTotalDistance() / 1000;
     $('statDistance').textContent = distanceKm.toFixed(1) + ' km';
+    $('statSessions').textContent = SessionEngine._sessions.length;
 
-    // Session count
-    $('statSessions').textContent = state._sessions ? state._sessions.length : 0;
-
-    const dominant = Object.keys(state.activityCounts).reduce((a, b) => state.activityCounts[a] > state.activityCounts[b] ? a : b);
+    const dominant = Object.keys(state.activityDurations).reduce((a, b) => 
+      (state.activityDurations[a] || 0) > (state.activityDurations[b] || 0) ? a : b, 'Stationary');
     $('insightMovement').textContent = `Dominant activity: ${dominant}. ${state.steps} steps detected.`;
-    $('insightTravel').textContent = state.speed > 0 ? `Moving at ${state.speed} km/h (max speed). Distance: ${distanceKm.toFixed(1)} km.` : `No significant travel logged yet.`;
+    $('insightTravel').textContent = state.speed > 0 ? `Moving at ${state.speed} km/h. Distance: ${distanceKm.toFixed(1)} km.` : `No significant travel logged yet.`;
 
     const patternLabels = { 'Stationary': 'Resting', 'Walking': 'Walking', 'Running': 'Running', 'Vehicle': 'Driving', 'Cycling': 'Cycling', 'Public Transport': 'Transit' };
     $('patternGrid').innerHTML = `
@@ -2693,12 +2525,9 @@
       $('confHistorySummary').textContent = `${state.confidenceHistory.length} samples, avg ${Math.round(avg)}%`;
     }
 
-    // Calibration status
     const calStatus = $('calibrationStatus');
     if (calStatus) {
-      calStatus.innerHTML = CalibrationEngine.isCalibrated() 
-        ? '<span class="good">Calibrated ✓</span>' 
-        : '<span class="warn">Not calibrated</span>';
+      calStatus.innerHTML = CalibrationEngine.isCalibrated() ? '<span class="good">Calibrated ✓</span>' : '<span class="warn">Not calibrated</span>';
     }
     const calStatusSmall = $('calibrationStatusSmall');
     if (calStatusSmall) {
@@ -2711,17 +2540,14 @@
         confidence: Math.round(state.confidence),
         accel: { x: fmt(state.accel.x, 2), y: fmt(state.accel.y, 2), z: fmt(state.accel.z, 2), mag: fmt(state.accel.mag, 2) },
         variance: getVariance(state.accel.history.slice(-20)).toFixed(4),
+        cadence: ImprovedStepEngine._cadence,
         speed: state.speed,
         steps: state.steps,
         distance: (DistanceTracker.getTotalDistance() / 1000).toFixed(2),
-        battery: state.battery,
-        mode: state.mode,
-        overrideMode: state.overrideMode,
-        isSim: state.isSim,
-        dnr: state.dnr,
+        sessions: SessionEngine._sessions.length,
+        stepTimes: state._stepTimes.length,
         calibrated: CalibrationEngine.isCalibrated(),
-        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb',
-        sessions: state._sessions ? state._sessions.length : 0
+        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb'
       }, null, 2);
     }
 
@@ -2732,11 +2558,11 @@
   // DAILY SUMMARY
   // ============================================================
   function renderDailySummary() {
-    const total = Object.values(state.activityCounts).reduce((a, b) => a + b, 1);
-    const top = Object.entries(state.activityCounts)
+    const total = Object.values(state.activityDurations).reduce((a, b) => a + b, 1);
+    const top = Object.entries(state.activityDurations)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 2)
-      .map(([act, count]) => `${act}: ${Math.round((count/total)*100)}%`)
+      .map(([act, dur]) => `${act}: ${Math.round((dur/total)*100)}%`)
       .join(' · ');
 
     const activeTime = Object.entries(state.activityDurations)
@@ -2814,20 +2640,15 @@
     if (!ctx || !canvas) return;
     const w = canvas.width = canvas.clientWidth || 300;
     const h = canvas.height = canvas.clientHeight || 90;
-
     ctx.clearRect(0, 0, w, h);
-
     const data = state.accel.history;
     if (data.length < 2) return;
-
     ctx.beginPath();
     ctx.strokeStyle = '#4DD9C4';
     ctx.lineWidth = 1.5;
-
     const min = Math.min(0.8, ...data);
     const max = Math.max(1.2, ...data);
     const range = max - min || 0.5;
-
     data.forEach((val, i) => {
       const x = (i / (data.length - 1)) * w;
       const norm = clamp((val - min) / range, 0, 1);
@@ -2836,7 +2657,6 @@
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-
     ctx.strokeStyle = 'rgba(107,115,133,0.25)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
@@ -2874,7 +2694,6 @@
   // MAIN LOOP
   // ============================================================
   function startEngine() {
-    // Load automations
     StorageEngine.getAll('automations').then(autos => {
       if (autos && autos.length) {
         state.automations = autos;
@@ -2896,13 +2715,11 @@
       renderRules();
     });
 
-    // Load gestures
     StorageEngine.getAll('gestures').then(gs => {
       if (gs && gs.length) state.gestures = gs;
       renderGestures();
     }).catch(() => renderGestures());
 
-    // Load places
     StorageEngine.getAll('places').then(places => {
       places.forEach(p => {
         if (p.name === 'Home') state.places.home = { lat: p.lat, lon: p.lon };
@@ -2911,15 +2728,11 @@
       renderPlaces();
     }).catch(() => renderPlaces());
 
-    // Load sessions
     StorageEngine.getAll('sessions').then(sessions => {
       if (sessions && sessions.length) {
-        state._sessions = sessions;
-        // Get today's summary
+        SessionEngine._sessions = sessions;
         SessionEngine.getTodaySummary().then(summary => {
-          if (summary) {
-            state.steps = summary.totalSteps;
-          }
+          if (summary) state.steps = summary.totalSteps;
         });
       }
     }).catch(() => {});
@@ -2932,7 +2745,6 @@
     updateGoalProgress();
     updateSoundUI();
 
-    // Restore calibration state
     const savedCalibration = localStorage.getItem('sensormind_calibration');
     if (savedCalibration) {
       try {
@@ -2969,15 +2781,9 @@
         }
       }
 
-      // Save session periodically
       if (state._currentSession && Date.now() - state._lastSessionSave > CONFIG.SESSION_SAVE_INTERVAL) {
         state._lastSessionSave = Date.now();
-        SessionEngine.updateSession(
-          state.currentActivity,
-          state.steps,
-          state.speed,
-          state.confidence
-        );
+        SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
       }
 
     }, CONFIG.TICK_INTERVAL);
@@ -2989,8 +2795,7 @@
       renderDailySummary();
       renderDurationDisplay();
       updateGoalProgress();
-      
-      // Check for smart suggestions
+
       SuggestionsEngine.analyze().then(suggestions => {
         if (suggestions.length > 0 && !state._suggestionsShown) {
           state._suggestionsShown = true;
@@ -3056,13 +2861,13 @@
     const q = $('askInput').value.toLowerCase().trim();
     const ans = $('askAnswer');
     ans.style.display = 'block';
-
     const distanceKm = DistanceTracker.getTotalDistance() / 1000;
 
     if (q.includes('doing') || q.includes('now')) {
       ans.textContent = `You are currently ${state.currentActivity} with ${Math.round(state.confidence)}% confidence. ${state.steps} steps detected.`;
     } else if (q.includes('active') || q.includes('today')) {
-      const dominant = Object.keys(state.activityCounts).reduce((a, b) => state.activityCounts[a] > state.activityCounts[b] ? a : b);
+      const dominant = Object.keys(state.activityDurations).reduce((a, b) => 
+        (state.activityDurations[a] || 0) > (state.activityDurations[b] || 0) ? a : b, 'Stationary');
       ans.textContent = `Logged ${state.timeline.length} events. Dominant activity: ${dominant}. ${state.steps} steps. Distance: ${distanceKm.toFixed(1)} km.`;
     } else if (q.includes('sensors')) {
       ans.textContent = `Accelerometer${state.isLive ? ' ✅' : ' ❌'}, Gyroscope ${state.isLive ? '✅' : '❌'}, Network ${state.network.available ? '✅' : '❌'}. (${state.isSim ? 'Simulated' : 'Hardware Direct'})`;
@@ -3071,7 +2876,7 @@
     } else if (q.includes('battery')) {
       ans.textContent = `Battery: ${state.battery.level}% ${state.battery.charging ? '(charging)' : '(not charging)'}`;
     } else if (q.includes('step') || q.includes('walk')) {
-      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km.`;
+      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${ImprovedStepEngine._cadence} spm.`;
     } else if (q.includes('duration') || q.includes('time')) {
       const durations = Object.entries(state.activityDurations)
         .filter(([, v]) => v > 0)
@@ -3092,6 +2897,8 @@
       return;
     } else if (q.includes('far') || q.includes('distance')) {
       ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(DistanceTracker.getActivityDistance('Walking')/1000).toFixed(1)} km, Running: ${(DistanceTracker.getActivityDistance('Running')/1000).toFixed(1)} km, Vehicle: ${(DistanceTracker.getActivityDistance('Vehicle')/1000).toFixed(1)} km.`;
+    } else if (q.includes('cadence')) {
+      ans.textContent = `Your current step cadence is ${ImprovedStepEngine._cadence} steps per minute.`;
     } else {
       ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km.`;
     }
@@ -3100,13 +2907,10 @@
   // ============================================================
   // EVENT BINDINGS
   // ============================================================
-
-  // Enable Button
   $('enableBtn').addEventListener('click', () => {
     StorageEngine.init().then(() => initSensors());
   });
 
-  // Sound Toggle
   $('soundToggleBtn').addEventListener('click', toggleSound);
   $('toggleSound').addEventListener('change', (e) => {
     SoundEngine.setEnabled(e.target.checked);
@@ -3114,28 +2918,20 @@
     showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
   });
 
-  // Vibration Toggle
   $('toggleVibration').addEventListener('change', (e) => {
     VibrationEngine.setEnabled(e.target.checked);
     showToast(e.target.checked ? '📳 Vibration ON' : '📳 Vibration OFF');
   });
 
-  // Notifications Toggle
   $('toggleNotifications').addEventListener('change', (e) => {
     NotificationSystem.setEnabled(e.target.checked);
-    if (e.target.checked) {
-      NotificationSystem.requestPermission();
-    }
+    if (e.target.checked) NotificationSystem.requestPermission();
     showToast(e.target.checked ? '🔔 Notifications ON' : '🔔 Notifications OFF');
   });
 
-  // Why Button
   $('whyBtn').addEventListener('click', () => $('whyPanel').classList.toggle('open'));
-
-  // Suggest Dismiss
   $('suggestDismiss').addEventListener('click', () => $('suggestCard').style.display = 'none');
 
-  // Fall Modal
   $('fallOk').addEventListener('click', () => {
     $('fallModal').classList.remove('show');
     showToast('Fall alert dismissed');
@@ -3146,7 +2942,6 @@
     addTimelineEvent('🚨 EMERGENCY', 'Fall assistance request issued.');
   });
 
-  // Mode Buttons
   ['modeNormal', 'modeRest', 'modeWalk'].forEach(id => {
     $(id).addEventListener('click', () => {
       const modeMap = { modeNormal: 'NORMAL', modeRest: 'REST', modeWalk: 'WALKING' };
@@ -3157,7 +2952,6 @@
     });
   });
 
-  // Automation Builder
   $('bCreate').addEventListener('click', () => {
     const name = $('bName').value.trim() || 'Custom Rule';
     const when = $('bWhen').value;
@@ -3165,12 +2959,10 @@
     const condVal = $('bCondVal').value || 0;
     const then = $('bThen').value;
     const cooldown = Number($('bCooldown').value) || 30;
-
     const rule = {
       id: Date.now().toString(),
       name, when, condType, condVal, then, cooldown, lastRun: 0, active: true
     };
-
     state.automations.push(rule);
     StorageEngine.add('automations', rule).catch(() => {});
     renderRules();
@@ -3178,7 +2970,6 @@
     $('bName').value = '';
   });
 
-  // Export/Import Rules
   $('exportRulesBtn').addEventListener('click', exportRules);
   $('importRulesBtn').addEventListener('click', () => $('importRulesFile').click());
   $('importRulesFile').addEventListener('change', (e) => {
@@ -3186,7 +2977,6 @@
     e.target.value = '';
   });
 
-  // Ask Button
   $('askBtn').addEventListener('click', processQuery);
   document.querySelectorAll('.ask-chip').forEach(chip => {
     chip.addEventListener('click', () => {
@@ -3195,7 +2985,6 @@
     });
   });
 
-  // Settings
   $('toggleDNR').addEventListener('change', e => {
     state.dnr = e.target.checked;
     $('dnrBanner').classList.toggle('show', state.dnr);
@@ -3210,14 +2999,13 @@
   $('btnClearHistory').addEventListener('click', () => {
     state.timeline = [];
     state.automationHistory = [];
-    state.activityCounts = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
     state.activityDurations = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
     state.steps = 0;
     state.confidenceHistory = [];
     state._suggested = {};
-    state._sessions = [];
+    SessionEngine._sessions = [];
     DistanceTracker.reset();
-    SoundEngine.stopWalkingLoop();
+    SoundEngine._lastStepSound = 0;
     renderTimeline();
     renderAutomationHistory();
     renderDailySummary();
@@ -3228,6 +3016,7 @@
   });
 
   $('btnExportData').addEventListener('click', exportData);
+  $('btnExportEverything').addEventListener('click', exportEverything);
 
   $('btnResetAll').addEventListener('click', () => {
     if (confirm('Reset all SensorMind settings and custom rules?')) {
@@ -3242,7 +3031,6 @@
     }
   });
 
-  // Places
   $('setHomeBtn').addEventListener('click', () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
@@ -3265,16 +3053,13 @@
     }
   });
 
-  // Step Goal
   $('stepGoalInput').addEventListener('change', (e) => {
     state.stepGoal = Math.max(100, parseInt(e.target.value) || CONFIG.STEP_GOAL_DEFAULT);
     updateGoalProgress();
     showToast(`Step goal set to ${state.stepGoal}`);
   });
 
-  // Reset Patterns
   $('resetPatternsBtn').addEventListener('click', () => {
-    state.activityCounts = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
     state.activityDurations = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
     state._suggested = {};
     showToast('Patterns reset');
@@ -3282,14 +3067,10 @@
     renderDurationDisplay();
   });
 
-  // Calibration
   $('calibrateBtn').addEventListener('click', async () => {
     const result = await CalibrationEngine.startCalibration();
     if (result) {
-      localStorage.setItem('sensormind_calibration', JSON.stringify({
-        calibrated: true,
-        baseline: result
-      }));
+      localStorage.setItem('sensormind_calibration', JSON.stringify({ calibrated: true, baseline: result }));
       renderUI();
     }
   });
@@ -3301,16 +3082,13 @@
     renderUI();
   });
 
-  // Gesture Recording
   $('gestStart').addEventListener('click', () => {
     const name = $('gestName').value.trim() || 'Custom Gesture';
     const duration = Number($('gestDuration').value);
     const action = $('gestAction').value;
-
     state.recordingGesture = name;
     state.recordedSamples = [];
     $('gestStatus').textContent = `Recording... Move your phone now! (${duration / 1000}s)`;
-
     setTimeout(() => {
       state.recordingGesture = null;
       const count = state.recordedSamples.length;
@@ -3338,7 +3116,6 @@
     labData = [];
     labRecording = true;
     $('labStatus').textContent = `Recording... 0/${dur}s`;
-
     let elapsed = 0;
     const interval = setInterval(() => {
       elapsed++;
@@ -3358,7 +3135,7 @@
         $('labStatus').textContent = `Done. ${labData.length} samples captured.`;
         showToast('Sensor recording complete');
       }
-    }, 1000);
+    }, 100);
   });
 
   $('labExportCsv').addEventListener('click', () => {
@@ -3385,7 +3162,6 @@
     URL.revokeObjectURL(url);
   });
 
-  // Simulation Controls
   $('simOverride').addEventListener('change', e => {
     state.overrideMode = e.target.value;
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
@@ -3416,23 +3192,17 @@
     showToast('Shake simulated');
   });
 
-  // Debug Toggle
   $('debugToggle').addEventListener('change', e => {
     state.debug = e.target.checked;
-    if (!state.debug) {
-      $('debugRaw').textContent = 'Enable the toggle above to stream raw → fused → classified values each tick.';
-    }
+    if (!state.debug) $('debugRaw').textContent = 'Enable the toggle above to stream raw → fused → classified values each tick.';
   });
 
-  // ============================================================
-  // PWA INSTALLATION
-  // ============================================================
+  // PWA Installation
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     showToast('📱 Install SensorMind as an app!');
-    // Add install button
     const installBtn = document.createElement('button');
     installBtn.className = 'btn-secondary';
     installBtn.textContent = '📱 Install App';
@@ -3442,9 +3212,7 @@
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            showToast('App installed successfully!');
-          }
+          if (choiceResult.outcome === 'accepted') showToast('App installed successfully!');
           deferredPrompt = null;
         });
       }
@@ -3456,17 +3224,13 @@
     showToast('🎉 SensorMind installed!');
   });
 
-  // ============================================================
-  // SCREEN LIFECYCLE HANDLING
-  // ============================================================
+  // Screen Lifecycle
   document.addEventListener('visibilitychange', () => {
     state.screen.state = document.hidden ? 'Background' : 'Active';
     if (document.hidden) {
-      // Reduce processing
       state._backgroundMode = true;
     } else {
       state._backgroundMode = false;
-      // Revalidate sensors
       if (state._realSensorsActive) {
         state.sensorHealth.accel.stale = false;
         state.sensorHealth.gyro.stale = false;
@@ -3478,7 +3242,7 @@
   // INIT
   // ============================================================
   state.currentActivity = 'Stationary';
-  state.confidence = 95;
+  state.confidence = 85;
   state.accel.history = new Array(20).fill(1.0);
 
   renderUI();
@@ -3493,16 +3257,23 @@
   updateGoalProgress();
   updateSoundUI();
 
-  console.log('SensorMind v3.0 - Complete Rewrite with all improvements');
-  console.log('P0: Activity Detection Fix ✓');
-  console.log('P0: Step Counting Upgrade ✓');
-  console.log('P0: Session Engine ✓');
-  console.log('P1: Distance Tracking ✓');
-  console.log('P1: Browser Notifications ✓');
-  console.log('P1: Vibration Feedback ✓');
-  console.log('P2: Smart Suggestions ✓');
-  console.log('P2: Sensor Calibration ✓');
-  console.log('P3: PWA Support ✓');
+  console.log('SensorMind v3.1 - All Critical Fixes Applied');
+  console.log('✅ P0: Activity/Step circular dependency fixed');
+  console.log('✅ P0: stepTimes properly maintained');
+  console.log('✅ P0: Session engine state duplication fixed');
+  console.log('✅ P0: Session step accounting fixed');
+  console.log('✅ P0: Activity percentages use duration');
+  console.log('✅ P0: Automation delete/update persistence fixed');
+  console.log('✅ P0: Gyroscope reporting fixed');
+  console.log('✅ P1: Accelerometer filtering applied');
+  console.log('✅ P1: Adaptive step detection');
+  console.log('✅ P1: Temporal activity smoothing');
+  console.log('✅ P1: GPS filtering');
+  console.log('✅ P2: Daily/weekly history');
+  console.log('✅ P2: Activity sessions');
+  console.log('✅ P2: Distance by activity');
+  console.log('✅ P2: Better insights');
+  console.log('✅ P3: Sensor replay support');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
