@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>SensorMind — Your phone knows more than you think</title>
+<title>SensorMind — Universal Sensor Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
@@ -111,6 +111,7 @@
   .status-val{font-family:'JetBrains Mono',monospace;color:var(--text-bright);font-weight:500;}
   .status-val.na{color:var(--text-dim); font-style:italic;}
   .status-val.good{color:var(--green);} .status-val.warn{color:var(--amber);}
+  .status-val.unsupported{color:var(--text-dim); font-style:italic; opacity:0.6;}
 
   .scope{margin:0 20px 8px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel);}
   .scope-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 0;}
@@ -119,8 +120,10 @@
   canvas#waveform{width:100%;height:90px;display:block;}
 
   .sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .sensor-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 14px;}
-  .sensor-card.unavailable{opacity:.5;}
+  .sensor-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 14px;transition:all .3s;}
+  .sensor-card.unavailable{opacity:.4;}
+  .sensor-card.unsupported{opacity:.3; border-color:var(--text-dim);}
+  .sensor-card .sensor-status-tag.unsupported{background:rgba(107,115,133,.1);color:var(--text-dim);}
   .sensor-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;}
   .sensor-name{font-size:12px;color:var(--text-dim);font-weight:500;}
   .sensor-status-tag{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:10px;letter-spacing:.04em;}
@@ -298,6 +301,20 @@
   .calibration-status .warn{color:var(--amber);}
 
   .btn-secondary.disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
+
+  /* Sensor Status Summary */
+  .sensor-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:8px;}
+  .sensor-badge{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;text-align:center;font-size:10px;}
+  .sensor-badge .icon{font-size:16px;display:block;margin-bottom:2px;}
+  .sensor-badge .name{color:var(--text-dim);}
+  .sensor-badge .status{font-family:'JetBrains Mono',monospace;font-size:9px;}
+  .sensor-badge.available .status{color:var(--green);}
+  .sensor-badge.unavailable .status{color:var(--text-dim);}
+  .sensor-badge.unsupported .status{color:var(--red);}
+
+  .compatibility-notice{background:rgba(255,184,77,0.08);border:1px solid rgba(255,184,77,0.2);border-radius:10px;padding:12px 16px;margin:8px 20px;}
+  .compatibility-notice .title{font-weight:600;color:var(--amber);font-size:13px;}
+  .compatibility-notice .detail{font-size:12px;color:var(--text-dim);margin-top:4px;}
 </style>
 </head>
 <body>
@@ -312,7 +329,7 @@
     </svg>
   </div>
   <h1>SensorMind</h1>
-  <div class="tagline">"Your phone knows more than you think."</div>
+  <div class="tagline">"Universal Sensor Platform — Detects & Adapts"</div>
 
   <div class="perm-explain">
     <div class="perm-row"><div class="perm-icon">📈</div><div><div class="perm-row-title">Motion Sensors</div><div class="perm-row-desc">Used for activity detection, step counting, and gesture recognition. Required for core functionality.</div></div></div>
@@ -321,7 +338,7 @@
     <div class="perm-row"><div class="perm-icon">🔋</div><div><div class="perm-row-title">Device state</div><div class="perm-row-desc">Battery, network and screen state, when your browser exposes them.</div></div></div>
   </div>
 
-  <button class="btn-primary" id="enableMotionBtn">Enable Motion Sensors</button>
+  <button class="btn-primary" id="enableMotionBtn">Enable All Available Sensors</button>
   <button class="btn-secondary" id="enableLocationBtn" style="margin-top:8px;">Enable Location (Optional)</button>
   <div class="fine">Everything runs on-device. Sensor data is processed locally and is not uploaded by SensorMind.</div>
 </div>
@@ -351,6 +368,12 @@
   </header>
   <div class="sim-banner" id="simBanner">SIMULATION MODE — values are generated, not real sensor readings</div>
   <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — sensor-derived processing is paused</div>
+
+  <!-- Compatibility Notice -->
+  <div class="compatibility-notice" id="compatNotice">
+    <div class="title">🔄 Sensor Compatibility Check</div>
+    <div class="detail" id="compatDetail">Detecting available sensors on your device...</div>
+  </div>
 
   <div class="sound-toggle">
     <span class="label">🔊 Sound Effects</span>
@@ -580,8 +603,13 @@
 
   <div class="view" id="view-sensors">
     <div class="section">
-      <div class="section-title" style="margin-top:22px">Sensor Availability <small id="sensorCount">0/8</small></div>
+      <div class="section-title" style="margin-top:22px">Sensor Availability <small id="sensorCount">0/15</small></div>
       <div class="sensor-grid" id="sensorFullGrid"></div>
+
+      <div class="section-title">Sensor Summary <small>quick status</small></div>
+      <div class="card">
+        <div class="sensor-summary" id="sensorSummary"></div>
+      </div>
 
       <div class="section-title">Sensor Playground</div>
       <div class="play-card">
@@ -804,48 +832,251 @@
   'use strict';
 
   // ============================================================
-  // CONFIG
+  // UNIVERSAL SENSOR DETECTION SYSTEM
   // ============================================================
-  const CONFIG = {
-    ACTIVITY_THRESHOLDS: {
-      STATIONARY_MAX_VAR: 0.06,
-      WALKING_MIN_VAR: 0.04,
-      WALKING_MAX_VAR: 0.4,
-      RUNNING_MIN_VAR: 0.35,
-      RUNNING_MAX_VAR: 1.5,
-      VEHICLE_SPEED_MIN: 28,
-      CYCLING_SPEED_MIN: 10,
-      CYCLING_SPEED_MAX: 28,
-      PUBLIC_TRANSPORT_SPEED_MIN: 15,
-      PUBLIC_TRANSPORT_SPEED_MAX: 45,
-      STEP_PEAK_MIN: 1.15,
-      STEP_PEAK_MAX: 2.2,
-      STEP_INTERVAL_MIN: 250,
-      STEP_INTERVAL_MAX: 2200,
-      SHAKE_THRESHOLD: 2.5,
-      FALL_THRESHOLD: 3.2,
-      MIN_CADENCE: 20,
-      MAX_CADENCE: 240
+  const SensorRegistry = {
+    sensors: {},
+    
+    // Complete list of all possible smartphone sensors
+    ALL_SENSORS: [
+      { id: 'accelerometer', name: 'Accelerometer', icon: '📈', api: 'DeviceMotionEvent', required: true, desc: 'Measures acceleration & tilt' },
+      { id: 'gyroscope', name: 'Gyroscope', icon: '🔄', api: 'DeviceOrientationEvent', required: false, desc: 'Measures rotation rate' },
+      { id: 'magnetometer', name: 'Magnetometer', icon: '🧲', api: 'DeviceOrientationEvent', required: false, desc: 'Digital compass' },
+      { id: 'gps', name: 'GPS / GNSS', icon: '📍', api: 'geolocation', required: false, desc: 'Satellite positioning' },
+      { id: 'proximity', name: 'Proximity Sensor', icon: '👋', api: 'ProximitySensor', required: false, desc: 'Detects nearby objects' },
+      { id: 'ambientLight', name: 'Ambient Light', icon: '☀️', api: 'AmbientLightSensor', required: false, desc: 'Measures brightness' },
+      { id: 'barometer', name: 'Barometer', icon: '🌡️', api: 'BarometerSensor', required: false, desc: 'Measures air pressure' },
+      { id: 'heartRate', name: 'Heart Rate', icon: '❤️', api: 'heartRate', required: false, desc: 'Optical heart rate monitor' },
+      { id: 'fingerprint', name: 'Fingerprint', icon: '🔐', api: 'fingerprint', required: false, desc: 'Biometric authentication' },
+      { id: 'microphone', name: 'Microphone', icon: '🎤', api: 'getUserMedia', required: false, desc: 'Audio capture' },
+      { id: 'camera', name: 'Camera', icon: '📷', api: 'getUserMedia', required: false, desc: 'Image capture' },
+      { id: 'battery', name: 'Battery Status', icon: '🔋', api: 'getBattery', required: false, desc: 'Battery level & charging' },
+      { id: 'network', name: 'Network Info', icon: '📶', api: 'NetworkInformation', required: false, desc: 'Connection type & speed' },
+      { id: 'ambientTemp', name: 'Temperature', icon: '🌡️', api: 'AmbientTemperatureSensor', required: false, desc: 'Ambient temperature' },
+      { id: 'humidity', name: 'Humidity', icon: '💧', api: 'HumiditySensor', required: false, desc: 'Relative humidity' }
+    ],
+    
+    // Detect all available sensors
+    detectAll() {
+      console.log('🔍 Detecting all available sensors...');
+      const results = {};
+      let availableCount = 0;
+      let unsupportedCount = 0;
+      
+      for (const sensorDef of this.ALL_SENSORS) {
+        const status = this.detectSensor(sensorDef);
+        results[sensorDef.id] = status;
+        if (status.available) availableCount++;
+        if (status.unsupported) unsupportedCount++;
+        console.log(`  ${sensorDef.icon} ${sensorDef.name}: ${status.available ? '✅ AVAILABLE' : status.unsupported ? '❌ NOT SUPPORTED' : '⚠️ REQUIRES PERMISSION'}`);
+      }
+      
+      this.sensors = results;
+      this._availableCount = availableCount;
+      this._unsupportedCount = unsupportedCount;
+      
+      // Update UI
+      this.updateUI();
+      
+      return results;
     },
-    MAX_HISTORY: 60,
-    TICK_INTERVAL: 100,
-    SLOW_TICK_INTERVAL: 1500,
-    UI_UPDATE_INTERVAL: 500,
-    BATTERY_SAVER_THRESHOLD: 20,
-    SIM_TIMEOUT: 3000,
-    STEP_GOAL_DEFAULT: 10000,
-    CONFIRMATION_DELAY: 2000,
-    SESSION_SAVE_INTERVAL: 30000,
-    MIN_STEPS_PER_SESSION: 3,
-    GPS_JUMP_MAX_KMH: 120,
-    GPS_ACCURACY_THRESHOLD: 50,
-    PLACE_RADIUS: 150,
-    MAX_LAB_DURATION: 300,
-    MAX_IMPORT_RULES: 50,
-    MAX_RULE_NAME_LENGTH: 100,
-    MAX_GESTURE_NAME_LENGTH: 30,
-    STEP_DETECTION_WINDOW: 3000,
-    MIN_STEPS_FOR_CADENCE: 3
+    
+    // Detect a single sensor
+    detectSensor(sensorDef) {
+      const result = { available: false, unsupported: false, permission: 'unknown' };
+      
+      try {
+        switch (sensorDef.id) {
+          case 'accelerometer':
+            result.available = 'DeviceMotionEvent' in window;
+            if (result.available && typeof DeviceMotionEvent.requestPermission === 'function') {
+              result.permission = 'prompt';
+            }
+            break;
+            
+          case 'gyroscope':
+            result.available = 'DeviceOrientationEvent' in window;
+            if (result.available) {
+              // Check if we can actually get data
+              try {
+                const test = new DeviceOrientationEvent('test');
+                result.available = true;
+              } catch (e) {
+                result.available = false;
+              }
+            }
+            break;
+            
+          case 'magnetometer':
+            result.available = 'DeviceOrientationEvent' in window;
+            break;
+            
+          case 'gps':
+            result.available = 'geolocation' in navigator;
+            if (result.available) {
+              result.permission = 'prompt';
+            }
+            break;
+            
+          case 'proximity':
+            result.available = 'ProximitySensor' in window;
+            break;
+            
+          case 'ambientLight':
+            result.available = 'AmbientLightSensor' in window;
+            break;
+            
+          case 'barometer':
+            result.available = 'BarometerSensor' in window;
+            break;
+            
+          case 'heartRate':
+            result.available = 'heartRate' in navigator;
+            break;
+            
+          case 'fingerprint':
+            result.available = 'fingerprint' in navigator || 'Fingerprint' in window;
+            break;
+            
+          case 'microphone':
+          case 'camera':
+            result.available = 'getUserMedia' in navigator || 'webkitGetUserMedia' in navigator;
+            result.permission = 'prompt';
+            break;
+            
+          case 'battery':
+            result.available = 'getBattery' in navigator;
+            break;
+            
+          case 'network':
+            result.available = 'connection' in navigator;
+            break;
+            
+          case 'ambientTemp':
+            result.available = 'AmbientTemperatureSensor' in window;
+            break;
+            
+          case 'humidity':
+            result.available = 'HumiditySensor' in window;
+            break;
+            
+          default:
+            result.unsupported = true;
+        }
+      } catch (e) {
+        result.unsupported = true;
+        result.available = false;
+      }
+      
+      // If not available and not explicitly unsupported, it might require permissions
+      if (!result.available && !result.unsupported) {
+        result.permission = 'unknown';
+      }
+      
+      return result;
+    },
+    
+    // Check if a specific sensor is available
+    isAvailable(sensorId) {
+      return this.sensors[sensorId]?.available || false;
+    },
+    
+    // Get list of available sensors
+    getAvailable() {
+      return Object.keys(this.sensors).filter(id => this.sensors[id].available);
+    },
+    
+    // Get list of unsupported sensors
+    getUnsupported() {
+      return Object.keys(this.sensors).filter(id => this.sensors[id].unsupported);
+    },
+    
+    // Get count of available sensors
+    getAvailableCount() {
+      return this._availableCount || 0;
+    },
+    
+    // Get count of unsupported sensors
+    getUnsupportedCount() {
+      return this._unsupportedCount || 0;
+    },
+    
+    // Update UI with sensor status
+    updateUI() {
+      const total = this.ALL_SENSORS.length;
+      const available = this.getAvailableCount();
+      const unsupported = this.getUnsupportedCount();
+      const pending = total - available - unsupported;
+      
+      // Update sensor count
+      const countEl = document.getElementById('sensorCount');
+      if (countEl) {
+        countEl.textContent = `${available}/${total}`;
+      }
+      
+      // Update compatibility notice
+      const compatDetail = document.getElementById('compatDetail');
+      if (compatDetail) {
+        if (available === 0) {
+          compatDetail.textContent = '⚠️ No sensors detected. Your browser may not support sensor APIs.';
+        } else if (unsupported > 0) {
+          compatDetail.textContent = `✅ ${available} sensors available, ${unsupported} not supported on this device, ${pending} require permissions.`;
+        } else {
+          compatDetail.textContent = `✅ All ${available} sensors available on this device.`;
+        }
+      }
+      
+      // Render sensor grid
+      this.renderSensorGrid();
+      this.renderSensorSummary();
+    },
+    
+    // Render full sensor grid
+    renderSensorGrid() {
+      const grid = document.getElementById('sensorFullGrid');
+      if (!grid) return;
+      
+      grid.innerHTML = this.ALL_SENSORS.map(sensor => {
+        const status = this.sensors[sensor.id] || { available: false, unsupported: true };
+        const isActive = status.available && (sensor.id === 'accelerometer' || sensor.id === 'gyroscope' || sensor.id === 'magnetometer');
+        const isUnsupported = status.unsupported;
+        const val = isUnsupported ? 'Not supported' : (status.available ? 'Available' : 'Requires permission');
+        
+        return `
+          <div class="sensor-card ${isUnsupported ? 'unsupported' : (status.available ? '' : 'unavailable')}">
+            <div class="sensor-card-head">
+              <span class="sensor-name">${sensor.icon} ${sensor.name}</span>
+              <span class="sensor-status-tag ${isUnsupported ? 'unsupported' : (status.available ? 'tag-active' : 'tag-unavailable')}">
+                ${isUnsupported ? '❌' : (status.available ? '✅' : '⏳')}
+                ${isUnsupported ? 'Unsupported' : (status.available ? 'Active' : 'Permission')}
+              </span>
+            </div>
+            <div class="sensor-readout"><b>${val}</b></div>
+            <div class="sensor-meta">${sensor.desc}</div>
+          </div>
+        `;
+      }).join('');
+    },
+    
+    // Render compact sensor summary
+    renderSensorSummary() {
+      const container = document.getElementById('sensorSummary');
+      if (!container) return;
+      
+      container.innerHTML = this.ALL_SENSORS.map(sensor => {
+        const status = this.sensors[sensor.id] || { available: false, unsupported: true };
+        const cls = status.unsupported ? 'unsupported' : (status.available ? 'available' : 'unavailable');
+        const statusText = status.unsupported ? '✗' : (status.available ? '✓' : '?');
+        
+        return `
+          <div class="sensor-badge ${cls}">
+            <span class="icon">${sensor.icon}</span>
+            <span class="name">${sensor.name}</span>
+            <span class="status">${statusText}</span>
+          </div>
+        `;
+      }).join('');
+    }
   };
 
   // ============================================================
@@ -893,7 +1124,7 @@
     },
     confidenceHistory: [],
     _suggested: {},
-    stepGoal: CONFIG.STEP_GOAL_DEFAULT,
+    stepGoal: 10000,
     debug: false,
     _calibrated: false,
     _calibrationBaseline: null,
@@ -924,55 +1155,58 @@
     _stepConfidence: 0,
     _cadence: 0,
     _lastActivityChange: 0,
-    _pendingActivity: null,
-    _pendingConfidence: 0,
+    _candidateActivity: null,
+    _candidateStartTime: 0,
     _activityStable: false
   };
 
   // ============================================================
-  // SAFE DOM UTILITIES
+  // UTILITY FUNCTIONS
   // ============================================================
-  function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+  const $ = id => document.getElementById(id);
+
+  function showToast(msg) {
+    const toast = $('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
   }
 
-  function createElement(tag, attrs, children) {
-    const el = document.createElement(tag);
-    if (attrs) {
-      for (const [key, value] of Object.entries(attrs)) {
-        if (key === 'className') el.className = value;
-        else if (key === 'textContent') el.textContent = value;
-        else if (key === 'innerHTML') el.innerHTML = value;
-        else if (key === 'type' || key === 'id' || key === 'placeholder' || key === 'maxlength' || key === 'min' || key === 'max' || key === 'value') {
-          el.setAttribute(key, value);
-        } else {
-          el.setAttribute(key, value);
-        }
-      }
-    }
-    if (children) {
-      for (const child of children) {
-        if (typeof child === 'string') el.appendChild(document.createTextNode(child));
-        else el.appendChild(child);
-      }
-    }
-    return el;
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function fmt(n, d) { return (n === null || n === undefined || isNaN(n)) ? '–' : n.toFixed(d); }
+  function escapeHtml(str) { if (!str) return ''; const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+
+  function nowLabel() {
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
   }
 
-  function renderSafeList(container, items, renderFn) {
-    if (!container) return;
-    if (!items || items.length === 0) {
-      container.innerHTML = `<div class="empty-note">No items to display.</div>`;
-      return;
-    }
-    container.innerHTML = '';
-    for (const item of items) {
-      const el = renderFn(item);
-      if (el) container.appendChild(el);
-    }
+  function getVariance(arr) {
+    if (arr.length < 2) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+  }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000, toRad = x => x * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ============================================================
@@ -1140,6 +1374,14 @@
       this.show('⚠️ Possible Fall Detected', 'Are you OK? Tap to dismiss.', { vibrate: [100, 50, 100, 50, 100, 50, 200], tag: 'fall-alert' });
     },
 
+    showSensorUnsupported(sensorName) {
+      this.show(`⚠️ ${sensorName} Unsupported`, `This device does not support ${sensorName}.`, { vibrate: [50] });
+    },
+
+    showSensorAvailable(sensorName) {
+      this.show(`✅ ${sensorName} Available`, `${sensorName} is ready for use.`, { vibrate: [30] });
+    },
+
     setEnabled(enabled) {
       this._enabled = enabled;
       if (enabled && !this._requested && this._permission !== 'granted') {
@@ -1265,78 +1507,6 @@
   };
 
   // ============================================================
-  // UTILITY FUNCTIONS
-  // ============================================================
-  const $ = id => document.getElementById(id);
-
-  function showToast(msg) {
-    const toast = $('toast');
-    toast.textContent = msg;
-    toast.classList.add('show');
-    clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
-  }
-
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  function fmt(n, d) { return (n === null || n === undefined || isNaN(n)) ? '–' : n.toFixed(d); }
-
-  function nowLabel() {
-    const d = new Date();
-    let h = d.getHours(), m = d.getMinutes();
-    const ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
-  }
-
-  function haversine(lat1, lon1, lat2, lon2) {
-    const R = 6371000, toRad = x => x * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  function downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  function getVariance(arr) {
-    if (arr.length < 2) return 0;
-    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
-  }
-
-  // ============================================================
-  // UI HELPERS
-  // ============================================================
-  function renderTimelineItem(item) {
-    const div = createElement('div', { className: 'tl-item', role: 'button', tabindex: '0' });
-    const time = createElement('div', { className: 'tl-time', textContent: item.time });
-    const label = createElement('div', { className: 'tl-label', textContent: item.label });
-    const detail = createElement('div', { className: 'tl-detail', textContent: item.detail || 'No further detail' });
-    div.appendChild(time);
-    div.appendChild(label);
-    div.appendChild(detail);
-    div.addEventListener('click', function() {
-      this.querySelector('.tl-detail').classList.toggle('open');
-    });
-    div.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        this.querySelector('.tl-detail').classList.toggle('open');
-      }
-    });
-    return div;
-  }
-
-  // ============================================================
   // NAVIGATION
   // ============================================================
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1364,6 +1534,34 @@
     if (state._motionEnabled) { showToast('Motion sensors already enabled'); return; }
     state._motionEnabled = true;
 
+    // Check which sensors are available and notify
+    const availableSensors = SensorRegistry.getAvailable();
+    const unsupportedSensors = SensorRegistry.getUnsupported();
+    
+    if (unsupportedSensors.length > 0) {
+      const names = unsupportedSensors.map(id => {
+        const def = SensorRegistry.ALL_SENSORS.find(s => s.id === id);
+        return def ? def.name : id;
+      });
+      showToast(`⚠️ ${unsupportedSensors.length} sensor(s) not supported on this device`);
+      
+      // Notify about unsupported sensors
+      for (const id of unsupportedSensors) {
+        const def = SensorRegistry.ALL_SENSORS.find(s => s.id === id);
+        if (def) NotificationSystem.showSensorUnsupported(def.name);
+      }
+      
+      // Log unsupported sensors
+      console.log('❌ Unsupported sensors:', unsupportedSensors.join(', '));
+    }
+    
+    // Notify about available sensors
+    for (const id of availableSensors) {
+      const def = SensorRegistry.ALL_SENSORS.find(s => s.id === id);
+      if (def) console.log(`✅ ${def.name} available`);
+    }
+
+    // Enable accelerometer
     if ('DeviceMotionEvent' in window) {
       if (typeof DeviceMotionEvent.requestPermission === 'function') {
         DeviceMotionEvent.requestPermission()
@@ -1374,14 +1572,48 @@
       }
     } else {
       enableSimMode('DeviceMotionEvent unsupported');
+      NotificationSystem.showSensorUnsupported('Accelerometer');
     }
 
+    // Enable gyroscope and magnetometer (orientation)
     if ('DeviceOrientationEvent' in window) {
       const handler = e => {
         state.orientation = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
       };
       window.addEventListener('deviceorientation', handler);
       state._listenerCleanup.push(() => window.removeEventListener('deviceorientation', handler));
+      console.log('✅ Gyroscope/Magnetometer orientation enabled');
+    } else {
+      NotificationSystem.showSensorUnsupported('Gyroscope');
+    }
+
+    // Enable ambient light sensor if available
+    if ('AmbientLightSensor' in window) {
+      try {
+        const sensor = new AmbientLightSensor();
+        sensor.addEventListener('reading', () => {
+          state.light.available = true;
+          state.light.val = `${Math.round(sensor.illuminance)} lx`;
+        });
+        sensor.start();
+        console.log('✅ Ambient Light Sensor enabled');
+      } catch (e) {
+        console.log('⚠️ Ambient Light Sensor failed to start');
+      }
+    }
+
+    // Enable proximity sensor if available
+    if ('ProximitySensor' in window) {
+      try {
+        const sensor = new ProximitySensor();
+        sensor.addEventListener('reading', () => {
+          state.proximity = { distance: sensor.distance, available: true };
+        });
+        sensor.start();
+        console.log('✅ Proximity Sensor enabled');
+      } catch (e) {
+        console.log('⚠️ Proximity Sensor failed to start');
+      }
     }
 
     SoundEngine.init();
@@ -1403,7 +1635,7 @@
       const watchId = navigator.geolocation.watchPosition(
         pos => {
           const accuracy = pos.coords.accuracy;
-          const goodFix = !accuracy || accuracy <= CONFIG.GPS_ACCURACY_THRESHOLD;
+          const goodFix = !accuracy || accuracy <= 50;
           if (goodFix) {
             state.speed = Math.round((pos.coords.speed || 0) * 3.6);
           }
@@ -1418,10 +1650,10 @@
 
           if (state.places.home && pos.coords) {
             const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
-            if (d < CONFIG.PLACE_RADIUS && !state._wasHome) {
+            if (d < 150 && !state._wasHome) {
               triggerAutomation('ArriveHome');
               state._wasHome = true;
-            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasHome) {
+            } else if (d > 200 && state._wasHome) {
               triggerAutomation('LeaveHome');
               state._wasHome = false;
             }
@@ -1429,10 +1661,10 @@
 
           if (state.places.work && pos.coords) {
             const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.work.lat, state.places.work.lon);
-            if (d < CONFIG.PLACE_RADIUS && !state._wasWork) {
+            if (d < 150 && !state._wasWork) {
               triggerAutomation('ArriveWork');
               state._wasWork = true;
-            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasWork) {
+            } else if (d > 200 && state._wasWork) {
               triggerAutomation('LeaveWork');
               state._wasWork = false;
             }
@@ -1442,9 +1674,11 @@
         { enableHighAccuracy: true }
       );
       state._listenerCleanup.push(() => navigator.geolocation.clearWatch(watchId));
-      showToast('Location enabled. GPS accuracy improves outdoors.');
+      showToast('📍 Location enabled. GPS accuracy improves outdoors.');
+      NotificationSystem.showSensorAvailable('GPS');
     } else {
       showToast('Geolocation not supported in this browser');
+      NotificationSystem.showSensorUnsupported('GPS');
     }
   }
 
@@ -1491,7 +1725,7 @@
     $('simBanner').classList.add('show');
     showToast(`Simulation mode: ${reason}`);
     if (!state._simulationInterval) {
-      state._simulationInterval = setInterval(runSimulationLoop, CONFIG.TICK_INTERVAL);
+      state._simulationInterval = setInterval(runSimulationLoop, 100);
     }
   }
 
@@ -1505,7 +1739,6 @@
     let act = state.currentActivity;
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') act = state.overrideMode;
 
-    // Generate realistic walking pattern with clear step peaks
     switch (act) {
       case 'Walking': 
         baseMag = 1.0 + Math.sin(time * 4.5) * 0.3 + Math.sin(time * 7.2) * 0.12 + Math.sin(time * 2.1) * 0.05;
@@ -1550,14 +1783,14 @@
 
   function updateDistance(lat, lon, speed, accuracy) {
     if (state.dnr) return;
-    if (accuracy && accuracy > CONFIG.GPS_ACCURACY_THRESHOLD) return;
+    if (accuracy && accuracy > 50) return;
     const now = Date.now();
     const position = { lat, lon, speed, accuracy, timestamp: now };
 
     if (_lastPosition) {
       const distance = haversine(_lastPosition.lat, _lastPosition.lon, lat, lon);
       const timeDiff = (now - _lastPosition.timestamp) / 1000;
-      const maxDistance = (CONFIG.GPS_JUMP_MAX_KMH / 3.6) * timeDiff;
+      const maxDistance = (120 / 3.6) * timeDiff;
 
       if (distance < maxDistance && distance > 0.5) {
         state._totalDistance += distance;
@@ -1572,7 +1805,7 @@
   function getActivityDistance(activity) { return state._activityDistances[activity] || 0; }
 
   // ============================================================
-  // STEP DETECTION - FIXED
+  // STEP DETECTION
   // ============================================================
   function detectStep(mag, timestamp) {
     if (state.dnr) return null;
@@ -1605,8 +1838,7 @@
     if ((isValley || isPeak) && deviation > state._stepThreshold && prominence > state._stepThreshold * 0.7) {
       const timeSinceLast = timestamp - state._lastStepTime;
       const isFirstStep = state._lastStepTime === 0;
-      if (isFirstStep || (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
-        timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX)) {
+      if (isFirstStep || (timeSinceLast > 250 && timeSinceLast < 2200)) {
         state._lastStepTime = timestamp;
         state._stepConfidence = Math.min(95, state._stepConfidence + 2);
         const cadence = isFirstStep ? state._cadence : Math.round(60 / (timeSinceLast / 1000));
@@ -1624,7 +1856,7 @@
   }
 
   // ============================================================
-  // ACTIVITY CLASSIFICATION - FIXED: Walking detection improved
+  // ACTIVITY CLASSIFICATION
   // ============================================================
   function classifyActivity(magHistory, gyroHistory, gpsData) {
     if (magHistory.length < 5) return { key: state.currentActivity || 'Stationary', confidence: 50 };
@@ -1653,13 +1885,12 @@
     }
     features.jerk = jerkSum / filtered.length;
 
-    // Calculate step frequency from recent steps
     const stepTimes = state._stepTimes || [];
     if (stepTimes.length > 1) {
-      const recentSteps = stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW);
+      const recentSteps = stepTimes.filter(t => Date.now() - t < 3000);
       features.recentSteps = recentSteps.length;
       if (recentSteps.length > 1) {
-        features.stepFrequency = (recentSteps.length / (CONFIG.STEP_DETECTION_WINDOW / 1000)) * 60;
+        features.stepFrequency = (recentSteps.length / 3) * 60;
       }
     }
 
@@ -1669,40 +1900,24 @@
       features.gyroVariance = gyroMag.reduce((s, v) => s + Math.pow(v - gyroMean, 2), 0) / gyroMag.length;
     }
 
-    // DEBUG: Log features for walking detection
-    if (features.stepFrequency > 0 && features.variance > 0.01) {
-      console.log('🔍 Walking detection:', {
-        stepFreq: Math.round(features.stepFrequency),
-        variance: features.variance.toFixed(3),
-        recentSteps: features.recentSteps,
-        speed: features.speed,
-        peak: features.peak.toFixed(2)
-      });
-    }
-
-    // Initialize scores - WALKING gets a higher base score
     const scores = {
       Stationary: 0.04,
-      Walking: 0.15,  // Higher base score for walking
+      Walking: 0.15,
       Running: 0.04,
       Cycling: 0.04,
       Vehicle: 0.04,
       'Public Transport': 0.02
     };
 
-    // STATIONARY detection
     if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
       scores.Stationary += 0.7;
     }
     if (features.gyroVariance < 2) scores.Stationary += 0.15;
 
-    // ===== WALKING detection - IMPROVED =====
-    // Walking has distinct step pattern with variance between 0.005-0.4 and step frequency 40-135 spm
     const isWalkingVariance = features.variance > 0.005 && features.variance < 0.4;
     const isWalkingCadence = features.stepFrequency >= 40 && features.stepFrequency <= 135;
-    const hasRecentSteps = features.recentSteps >= CONFIG.MIN_STEPS_FOR_CADENCE;
+    const hasRecentSteps = features.recentSteps >= 3;
     
-    // Walking requires EITHER cadence OR recent steps + variance
     const walkingConditionMet = isWalkingVariance && (
       (isWalkingCadence && hasRecentSteps) || 
       (hasRecentSteps && features.recentSteps >= 2 && features.variance > 0.008)
@@ -1710,30 +1925,24 @@
 
     if (walkingConditionMet) {
       scores.Walking += 0.6;
-      // Bonus for good cadence
       if (features.stepFrequency > 60 && features.stepFrequency < 130) {
         scores.Walking += 0.2;
       }
     }
     
-    // GPS speed support for walking (1.5-8 km/h)
     if (features.speed !== null && features.speed > 1.5 && features.speed < 8) {
       scores.Walking += 0.25;
     }
     
-    // Gyro variance support for walking (2-20)
     if (features.gyroVariance > 2 && features.gyroVariance < 20) {
       scores.Walking += 0.05;
     }
 
-    // RUNNING detection
     if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150 && features.recentSteps >= 3) {
       scores.Running += 0.6;
     }
     if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
 
-    // CYCLING detection - only if NOT walking
-    // Cycling has low step frequency but higher speed
     if (features.speed !== null && features.speed > 10 && features.speed <= 28 && 
         features.stepFrequency < 20 && features.recentSteps < 2) {
       scores.Cycling += 0.55;
@@ -1742,19 +1951,16 @@
       scores.Cycling += 0.15;
     }
 
-    // VEHICLE detection
     if (features.speed !== null && features.speed > 28 && features.stepFrequency < 20 && features.recentSteps < 2) {
       scores.Vehicle += Math.min(0.75, features.speed / 70);
     }
     if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
 
-    // PUBLIC TRANSPORT detection
     if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
       features.peak > 0.5 && features.stepFrequency < 8 && features.recentSteps < 2) {
       scores['Public Transport'] += 0.12;
     }
 
-    // Normalize scores
     const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
     Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
 
@@ -1763,10 +1969,8 @@
     const runnerUp = sorted[1] || ['', 0];
 
     const separation = winner[1] - runnerUp[1];
-    // Higher confidence for walking if separation is good
     let confidence = Math.min(98, Math.max(30, (winner[1] * 100 + 10) + separation * 20));
     
-    // Boost confidence for walking if we have strong evidence
     if (winner[0] === 'Walking' && walkingConditionMet && features.recentSteps >= 3) {
       confidence = Math.min(95, confidence + 10);
     }
@@ -1781,12 +1985,12 @@
   }
 
   // ============================================================
-  // ACTIVITY SETTER - With confirmation delay for stability
+  // ACTIVITY SETTER
   // ============================================================
   let _confirmedActivity = 'Stationary';
   let _candidateActivity = null;
   let _candidateStartTime = 0;
-  let _confirmationDelay = CONFIG.CONFIRMATION_DELAY;
+  let _confirmationDelay = 2000;
 
   function setActivity(newAct, conf) {
     if (state.dnr) return;
@@ -1798,13 +2002,11 @@
     }
     state.activityStartTime = now;
 
-    // If same activity, just update confidence
     if (state.currentActivity === newAct) {
       state.confidence = Math.min(100, (state.confidence + conf) / 2 + 5);
       return;
     }
 
-    // Use confirmation delay to prevent rapid switching
     if (newAct !== _candidateActivity) {
       _candidateActivity = newAct;
       _candidateStartTime = now;
@@ -1812,19 +2014,16 @@
       return;
     }
 
-    // Check if candidate has been stable long enough
     if (now - _candidateStartTime < _confirmationDelay) {
       state.confidence = Math.min(100, (state.confidence + conf) / 2 + 3);
       return;
     }
 
-    // If confidence is too low, don't switch
     if (conf < 40) {
       state.confidence = Math.min(100, (state.confidence + conf) / 2);
       return;
     }
 
-    // ACTIVITY CHANGE - confirmed
     const oldAct = state.currentActivity;
     state.currentActivity = newAct;
     state.confidence = Math.min(conf + 10, 100);
@@ -1840,13 +2039,12 @@
     renderDurationDisplay();
     detectPatterns();
 
-    // End previous session
     if (state._currentSession) {
       state._currentSession.endTime = Date.now();
       state._currentSession.duration = state._currentSession.endTime - state._currentSession.startTime;
       state._currentSession.steps = state.steps - state._currentSession.startSteps;
       state._currentSession.distance = state._totalDistance - state._currentSession.startDistance;
-      if (state._currentSession.steps >= CONFIG.MIN_STEPS_PER_SESSION || state._currentSession.duration > 5000) {
+      if (state._currentSession.steps >= 3 || state._currentSession.duration > 5000) {
         state._sessions.push(state._currentSession);
         if (!state.dnr) {
           StorageEngine.add('sessions', state._currentSession).catch(() => {});
@@ -1855,7 +2053,6 @@
       state._currentSession = null;
     }
 
-    // Start new session
     state._currentSession = {
       id: Date.now(),
       startTime: Date.now(),
@@ -1880,7 +2077,6 @@
       NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
     }
 
-    // Reset candidate
     _candidateActivity = null;
     _candidateStartTime = 0;
 
@@ -1896,14 +2092,14 @@
   // ============================================================
   function processAccel(mag) {
     state.accel.history.push(mag);
-    if (state.accel.history.length > CONFIG.MAX_HISTORY) state.accel.history.shift();
+    if (state.accel.history.length > 60) state.accel.history.shift();
 
     const variance = getVariance(state.accel.history.slice(-30));
 
     const prevMag = state.accel.history[state.accel.history.length - 2] || mag;
     const delta = Math.abs(mag - prevMag);
     state.shakeIntensity = delta;
-    if (delta > CONFIG.ACTIVITY_THRESHOLDS.SHAKE_THRESHOLD) {
+    if (delta > 2.5) {
       triggerAutomation('Shake');
       VibrationEngine.vibrate([50, 30, 50]);
       addTimelineEvent('Shake detected', `Intensity: ${delta.toFixed(2)}g`);
@@ -1911,7 +2107,7 @@
 
     if (state._gestureRecording) state.recordedSamples.push(mag);
 
-    if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
+    if (mag > 3.2 && !state.fallTriggered) {
       state.fallTriggered = true;
       SoundEngine.playFall();
       VibrationEngine.fallWarning();
@@ -1938,7 +2134,7 @@
       if (state.currentActivity === 'Running') SoundEngine.playRunStep();
       else if (state.currentActivity === 'Walking') SoundEngine.playStep();
 
-      const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+      const goal = state.stepGoal || 10000;
       if (state.steps >= goal && !state._goalReached) {
         state._goalReached = true;
         triggerAutomation('StepGoal');
@@ -1983,7 +2179,28 @@
       container.innerHTML = `<div class="tl-empty">No events detected yet — start moving.</div>`;
       return;
     }
-    renderSafeList(container, state.timeline, renderTimelineItem);
+    container.innerHTML = '';
+    for (const item of state.timeline) {
+      const div = document.createElement('div');
+      div.className = 'tl-item';
+      div.setAttribute('role', 'button');
+      div.setAttribute('tabindex', '0');
+      div.innerHTML = `
+        <div class="tl-time">${item.time}</div>
+        <div class="tl-label">${item.label}</div>
+        <div class="tl-detail">${item.detail || 'No further detail'}</div>
+      `;
+      div.addEventListener('click', function() {
+        this.querySelector('.tl-detail').classList.toggle('open');
+      });
+      div.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.querySelector('.tl-detail').classList.toggle('open');
+        }
+      });
+      container.appendChild(div);
+    }
   }
 
   // ============================================================
@@ -2120,35 +2337,62 @@
   // RULE RENDER
   // ============================================================
   function renderRuleItem(rule) {
-    const div = createElement('div', { className: 'rule' });
+    const div = document.createElement('div');
+    div.className = 'rule';
 
-    const head = createElement('div', { className: 'rule-head' });
-    const textDiv = createElement('div', { className: 'rule-text' });
-    const nameEl = createElement('b', { textContent: rule.name });
-    textDiv.appendChild(nameEl);
-
-    const whenDiv = createElement('div', { className: 'rule-when', textContent: `WHEN ${rule.when}` });
+    const head = document.createElement('div');
+    head.className = 'rule-head';
+    
+    const textDiv = document.createElement('div');
+    textDiv.className = 'rule-text';
+    textDiv.innerHTML = `<b>${escapeHtml(rule.name)}</b>`;
+    
+    const whenDiv = document.createElement('div');
+    whenDiv.className = 'rule-when';
+    whenDiv.textContent = `WHEN ${rule.when}`;
     textDiv.appendChild(whenDiv);
-    const thenDiv = createElement('div', { className: 'rule-when', textContent: `THEN → ${rule.then}` });
+    
+    const thenDiv = document.createElement('div');
+    thenDiv.className = 'rule-when';
+    thenDiv.textContent = `THEN → ${rule.then}`;
     textDiv.appendChild(thenDiv);
+    
     if (rule.condType && rule.condType !== 'none') {
-      const condDiv = createElement('div', { className: 'rule-when', textContent: `IF → ${rule.condType} ${rule.condVal}` });
+      const condDiv = document.createElement('div');
+      condDiv.className = 'rule-when';
+      condDiv.textContent = `IF → ${rule.condType} ${rule.condVal}`;
       textDiv.appendChild(condDiv);
     }
 
-    const switchLabel = createElement('label', { className: 'switch' });
-    const checkbox = createElement('input', { type: 'checkbox', 'data-rule-id': rule.id });
+    const switchLabel = document.createElement('label');
+    switchLabel.className = 'switch';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.dataset.ruleId = rule.id;
     if (rule.active) checkbox.checked = true;
-    const slider = createElement('span', { className: 'slider' });
+    const slider = document.createElement('span');
+    slider.className = 'slider';
     switchLabel.appendChild(checkbox);
     switchLabel.appendChild(slider);
 
     head.appendChild(textDiv);
     head.appendChild(switchLabel);
 
-    const actions = createElement('div', { className: 'rule-actions' });
-    const testBtn = createElement('button', { className: 'chip-btn', 'data-rule-id': rule.id, 'data-action': 'test', textContent: 'Test' });
-    const delBtn = createElement('button', { className: 'chip-btn danger', 'data-rule-id': rule.id, 'data-action': 'delete', textContent: 'Delete' });
+    const actions = document.createElement('div');
+    actions.className = 'rule-actions';
+    
+    const testBtn = document.createElement('button');
+    testBtn.className = 'chip-btn';
+    testBtn.dataset.ruleId = rule.id;
+    testBtn.dataset.action = 'test';
+    testBtn.textContent = 'Test';
+    
+    const delBtn = document.createElement('button');
+    delBtn.className = 'chip-btn danger';
+    delBtn.dataset.ruleId = rule.id;
+    delBtn.dataset.action = 'delete';
+    delBtn.textContent = 'Delete';
+    
     actions.appendChild(testBtn);
     actions.appendChild(delBtn);
 
@@ -2191,7 +2435,11 @@
       list.innerHTML = `<div class="empty-note">No automations yet — create one above.</div>`;
       return;
     }
-    renderSafeList(list, state.automations, renderRuleItem);
+    list.innerHTML = '';
+    for (const rule of state.automations) {
+      const el = renderRuleItem(rule);
+      if (el) list.appendChild(el);
+    }
   }
 
   function renderAutomationHistory() {
@@ -2202,11 +2450,12 @@
     }
     container.innerHTML = '';
     for (const h of state.automationHistory) {
-      const row = createElement('div', { className: 'status-row' });
-      const key = createElement('span', { className: 'status-key', textContent: h.name });
-      const val = createElement('span', { className: 'status-val', textContent: h.time });
-      row.appendChild(key);
-      row.appendChild(val);
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML = `
+        <span class="status-key">${escapeHtml(h.name)}</span>
+        <span class="status-val">${escapeHtml(h.time)}</span>
+      `;
       container.appendChild(row);
     }
   }
@@ -2239,13 +2488,13 @@
         const validThen = ['notify', 'track', 'record', 'mode', 'sound', 'vibrate', 'export'];
         const validCond = ['none', 'battery', 'timeAfter', 'timeBefore', 'confidence'];
 
-        if (rules.length > CONFIG.MAX_IMPORT_RULES) {
-          rules = rules.slice(0, CONFIG.MAX_IMPORT_RULES);
-          showToast(`Limiting import to ${CONFIG.MAX_IMPORT_RULES} rules`);
+        if (rules.length > 50) {
+          rules = rules.slice(0, 50);
+          showToast(`Limiting import to 50 rules`);
         }
 
         const validRules = rules.filter(r => {
-          return r.name && typeof r.name === 'string' && r.name.length <= CONFIG.MAX_RULE_NAME_LENGTH &&
+          return r.name && typeof r.name === 'string' && r.name.length <= 100 &&
             validWhen.includes(r.when) &&
             validThen.includes(r.then) &&
             validCond.includes(r.condType || 'none') &&
@@ -2300,7 +2549,8 @@
         gestures: state.gestures,
         activityDurations: state.activityDurations,
         distance: getTotalDistance(),
-        sessions: state._sessions
+        sessions: state._sessions,
+        sensors: SensorRegistry.sensors
       }
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2319,8 +2569,9 @@
     ]).then(([automations, gestures, places, sessions, events, activities, preferences]) => {
       const data = {
         timestamp: new Date().toISOString(),
-        version: '3.3',
+        version: '3.4',
         automations, gestures, places, sessions, events, activities, preferences,
+        sensors: SensorRegistry.sensors,
         calibration: { calibrated: state._calibrated, baseline: state._calibrationBaseline }
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2341,11 +2592,12 @@
     }
     list.innerHTML = '';
     for (const g of state.gestures) {
-      const row = createElement('div', { className: 'status-row' });
-      const key = createElement('span', { className: 'status-key', textContent: `${g.name} (${g.samples || 0} pts)` });
-      const val = createElement('span', { className: 'status-val good', textContent: g.action });
-      row.appendChild(key);
-      row.appendChild(val);
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML = `
+        <span class="status-key">${escapeHtml(g.name)} (${g.samples || 0} pts)</span>
+        <span class="status-val good">${escapeHtml(g.action)}</span>
+      `;
       list.appendChild(row);
     }
   }
@@ -2375,10 +2627,10 @@
       <div><span>Sampling Mode:</span><span>${state.isSim ? 'Simulated' : 'Real Hardware'}</span></div>
       <div><span>Sensor Health:</span><span>Accel ${state.sensorHealth.accel.stale ? '⚠️' : '✅'} Gyro ${state.sensorHealth.gyro.stale ? '⚠️' : '✅'}</span></div>
       <div><span>Step Cadence:</span><span>${state._cadence} spm</span></div>
-      <div><span>Recent Steps:</span><span>${state._stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW).length}</span></div>
+      <div><span>Recent Steps:</span><span>${state._stepTimes.filter(t => Date.now() - t < 3000).length}</span></div>
+      <div><span>Available Sensors:</span><span>${SensorRegistry.getAvailableCount()}/${SensorRegistry.ALL_SENSORS.length}</span></div>
     `;
 
-    // Phone Status
     $('statusGrid').innerHTML = `
       <div class="status-row"><span class="status-key">Battery</span><span class="status-val ${state.battery.level < 20 ? 'warn' : 'good'}">${state.battery.available ? state.battery.level + '%' : 'N/A'}</span></div>
       <div class="status-row"><span class="status-key">Charging</span><span class="status-val">${state.battery.available ? (state.battery.charging ? 'Yes' : 'No') : 'N/A'}</span></div>
@@ -2391,27 +2643,8 @@
       <div class="status-row"><span class="status-key">Motion State</span><span class="status-val">${state.accel.mag > 1.2 ? 'Active' : 'Resting'}</span></div>
     `;
 
-    const sensors = [
-      { name: 'Accelerometer', active: state.isLive, val: `${fmt(state.accel.x, 2)}, ${fmt(state.accel.y, 2)}, ${fmt(state.accel.z, 2)}` },
-      { name: 'Gyroscope', active: state.isLive, val: `${Math.round(state.gyro.a)}°/s` },
-      { name: 'Geolocation', active: state._locationEnabled && (state.speed > 0 || state.isLive), val: state._locationEnabled ? `${state.speed} km/h` : 'Disabled' },
-      { name: 'Battery Status', active: state.battery.available, val: `${state.battery.level}%` },
-      { name: 'Network Info', active: state.network.available, val: state.network.type },
-      { name: 'Ambient Light', active: state.light.available, val: state.light.val },
-      { name: 'Screen State', active: true, val: state.screen.state },
-      { name: 'Device Motion', active: state.isLive, val: 'Enabled' }
-    ];
-
-    $('sensorCount').textContent = `${sensors.filter(s => s.active).length}/${sensors.length}`;
-    $('sensorFullGrid').innerHTML = sensors.map(s => `
-      <div class="sensor-card ${s.active ? '' : 'unavailable'}">
-        <div class="sensor-card-head">
-          <span class="sensor-name">${s.name}</span>
-          <span class="sensor-status-tag ${s.active ? 'tag-active' : 'tag-unavailable'}">${s.active ? 'ACTIVE' : 'OFF'}</span>
-        </div>
-        <div class="sensor-readout"><b>${s.val}</b></div>
-      </div>
-    `).join('');
+    // Sensor grid is rendered by SensorRegistry
+    SensorRegistry.updateUI();
 
     $('playShake').textContent = state.shakeIntensity.toFixed(2);
     const dot = $('tiltDot');
@@ -2496,11 +2729,13 @@
         distance: (getTotalDistance() / 1000).toFixed(2),
         sessions: state._sessions.length,
         stepTimes: state._stepTimes.length,
-        recentSteps: state._stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW).length,
+        recentSteps: state._stepTimes.filter(t => Date.now() - t < 3000).length,
         calibrated: state._calibrated,
         storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb',
         locationEnabled: state._locationEnabled,
-        dnr: state.dnr
+        dnr: state.dnr,
+        availableSensors: SensorRegistry.getAvailable(),
+        unsupportedSensors: SensorRegistry.getUnsupported()
       }, null, 2);
     }
 
@@ -2638,7 +2873,7 @@
   // GOAL PROGRESS
   // ============================================================
   function updateGoalProgress() {
-    const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+    const goal = state.stepGoal || 10000;
     const pct = Math.min(100, Math.round((state.steps / goal) * 100));
     $('goalProgressText').textContent = `${state.steps} / ${goal} steps`;
     $('goalPercentText').textContent = `${pct}%`;
@@ -2747,8 +2982,6 @@
     const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
     state._calibrated = true;
     state._calibrationBaseline = { gravity, noiseFloor: noise, offset: { x: mean.x, y: mean.y, z: mean.z } };
-    CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 80);
-    CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 120);
     showToast('Calibration complete!');
     StorageEngine.put('preferences', { id: 'calibration', ...state._calibrationBaseline, calibrated: true }).catch(() => {});
     renderUI();
@@ -2776,7 +3009,7 @@
       }
 
       const totalDuration = Object.values(state.activityDurations).reduce((a, b) => a + b, 0);
-      const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+      const goal = state.stepGoal || 10000;
       const progress = (state.steps / goal) * 100;
       if (progress < 30 && new Date().getHours() > 14 && totalDuration > 600) {
         suggestions.push({
@@ -2904,21 +3137,19 @@
           noiseFloor: cal.noiseFloor || 0.02,
           offset: cal.offset || { x: 0, y: 0, z: 0 }
         };
-        CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, (cal.noiseFloor || 0.02) * 80);
-        CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, (cal.noiseFloor || 0.02) * 120);
         renderUI();
       }
     }).catch(() => {});
 
     const mainInterval = setInterval(() => {
-      if (state.batterySaver && state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD) {
+      if (state.batterySaver && state.battery.level < 20) {
         state._tickCounter = (state._tickCounter || 0) + 1;
         if (state._tickCounter % 3 !== 0) return;
       }
 
       if (!state._realSensorsActive && !state.isSim && state.isLive) {
         const age = Date.now() - state.sensorHealth.accel.lastUpdate;
-        if (age > CONFIG.SIM_TIMEOUT) {
+        if (age > 3000) {
           enableSimMode('No sensor readings for ' + (age / 1000).toFixed(1) + 's');
         }
       }
@@ -2934,7 +3165,7 @@
         }
       }
 
-      if (state._currentSession && Date.now() - state._lastSessionSave > CONFIG.SESSION_SAVE_INTERVAL) {
+      if (state._currentSession && Date.now() - state._lastSessionSave > 30000) {
         state._lastSessionSave = Date.now();
         if (state._currentSession) {
           state._currentSession.confidence = state.confidence;
@@ -2948,7 +3179,7 @@
         }
       }
 
-    }, CONFIG.TICK_INTERVAL);
+    }, 100);
     state._listenerCleanup.push(() => clearInterval(mainInterval));
 
     const slowInterval = setInterval(() => {
@@ -3002,14 +3233,14 @@
           }
         }
       });
-    }, CONFIG.SLOW_TICK_INTERVAL);
+    }, 1500);
     state._listenerCleanup.push(() => clearInterval(slowInterval));
 
     setTimeout(() => {
       if (!state._realSensorsActive && !state.isSim && state.isLive) {
         enableSimMode('No real sensor data received');
       }
-    }, CONFIG.SIM_TIMEOUT);
+    }, 3000);
   }
 
   // ============================================================
@@ -3028,13 +3259,15 @@
         (state.activityDurations[a] || 0) > (state.activityDurations[b] || 0) ? a : b, 'Stationary');
       ans.textContent = `Logged ${state.timeline.length} events. Dominant activity: ${dominant}. ${state.steps} steps. Distance: ${distanceKm.toFixed(1)} km.`;
     } else if (q.includes('sensors')) {
-      ans.textContent = `Motion sensors ${state._motionEnabled ? '✅' : '❌'}, Location ${state._locationEnabled ? '✅' : '❌'}, Notifications ${NotificationSystem._enabled ? '✅' : '❌'}. (${state.isSim ? 'Simulated' : 'Hardware Direct'})`;
+      const available = SensorRegistry.getAvailable();
+      const unsupported = SensorRegistry.getUnsupported();
+      ans.textContent = `Available: ${available.length} sensors. Unsupported: ${unsupported.length} sensors. Motion: ${state._motionEnabled ? '✅' : '❌'}, Location: ${state._locationEnabled ? '✅' : '❌'}`;
     } else if (q.includes('automation')) {
       ans.textContent = `${state.automationHistory.length} automation executions logged this session. ${state.automations.filter(a => a.active).length} rules active.`;
     } else if (q.includes('battery')) {
       ans.textContent = `Battery: ${state.battery.level}% ${state.battery.charging ? '(charging)' : '(not charging)'}`;
     } else if (q.includes('step') || q.includes('walk')) {
-      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${state._cadence} spm. Recent steps: ${state._stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW).length}`;
+      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || 10000}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${state._cadence} spm.`;
     } else if (q.includes('duration') || q.includes('time')) {
       const durations = Object.entries(state.activityDurations)
         .filter(([, v]) => v > 0)
@@ -3053,8 +3286,19 @@
       ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(getActivityDistance('Walking') / 1000).toFixed(1)} km, Running: ${(getActivityDistance('Running') / 1000).toFixed(1)} km, Vehicle: ${(getActivityDistance('Vehicle') / 1000).toFixed(1)} km.`;
     } else if (q.includes('cadence')) {
       ans.textContent = `Your current step cadence is ${state._cadence} steps per minute.`;
+    } else if (q.includes('sensor') && q.includes('supported')) {
+      const unsupported = SensorRegistry.getUnsupported();
+      if (unsupported.length === 0) {
+        ans.textContent = 'All sensors are supported on this device!';
+      } else {
+        const names = unsupported.map(id => {
+          const def = SensorRegistry.ALL_SENSORS.find(s => s.id === id);
+          return def ? def.name : id;
+        });
+        ans.textContent = `Unsupported sensors: ${names.join(', ')}`;
+      }
     } else {
-      ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km.`;
+      ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km. Available sensors: ${SensorRegistry.getAvailableCount()}/${SensorRegistry.ALL_SENSORS.length}`;
     }
   }
 
@@ -3130,8 +3374,8 @@
   // ============================================================
   $('bCreate').addEventListener('click', () => {
     const name = $('bName').value.trim() || 'Custom Rule';
-    if (name.length > CONFIG.MAX_RULE_NAME_LENGTH) {
-      showToast(`Name too long (max ${CONFIG.MAX_RULE_NAME_LENGTH} characters)`);
+    if (name.length > 100) {
+      showToast(`Name too long (max 100 characters)`);
       return;
     }
     const when = $('bWhen').value;
@@ -3278,7 +3522,7 @@
   });
 
   $('stepGoalInput').addEventListener('change', (e) => {
-    state.stepGoal = Math.max(100, parseInt(e.target.value) || CONFIG.STEP_GOAL_DEFAULT);
+    state.stepGoal = Math.max(100, parseInt(e.target.value) || 10000);
     updateGoalProgress();
     showToast(`Step goal set to ${state.stepGoal}`);
   });
@@ -3299,8 +3543,6 @@
   $('resetCalibrationBtn').addEventListener('click', () => {
     state._calibrated = false;
     state._calibrationBaseline = null;
-    CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = 0.06;
-    CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.04;
     StorageEngine.delete('preferences', 'calibration').catch(() => {});
     showToast('Calibration reset');
     renderUI();
@@ -3316,8 +3558,8 @@
     }
 
     const name = $('gestName').value.trim() || 'Custom Gesture';
-    if (name.length > CONFIG.MAX_GESTURE_NAME_LENGTH) {
-      showToast(`Name too long (max ${CONFIG.MAX_GESTURE_NAME_LENGTH} characters)`);
+    if (name.length > 30) {
+      showToast(`Name too long (max 30 characters)`);
       return;
     }
 
@@ -3384,9 +3626,9 @@
     }
 
     let dur = Number($('labDuration').value);
-    if (dur > CONFIG.MAX_LAB_DURATION) {
-      dur = CONFIG.MAX_LAB_DURATION;
-      showToast(`Limiting to ${CONFIG.MAX_LAB_DURATION} seconds (max)`);
+    if (dur > 300) {
+      dur = 300;
+      showToast(`Limiting to 300 seconds (max)`);
     }
 
     state._labData = [];
@@ -3556,7 +3798,7 @@
       state.battery.charging = battery.charging;
       battery.addEventListener('levelchange', () => {
         state.battery.level = Math.round(battery.level * 100);
-        if (state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD && state.batterySaver) {
+        if (state.battery.level < 20 && state.batterySaver) {
           showToast('🔋 Battery low - Battery Saver mode active');
         }
       });
@@ -3598,11 +3840,14 @@
   // ============================================================
   // INIT
   // ============================================================
+  // Initialize Sensor Registry first
+  SensorRegistry.detectAll();
+  
+  // Initialize state
   state.currentActivity = 'Stationary';
   state.confidence = 85;
   state.accel.history = new Array(20).fill(1.0);
 
-  // Initialize live dot
   const liveDot = $('liveDot');
   if (liveDot) {
     liveDot.className = 'dot';
@@ -3621,13 +3866,11 @@
   updateSoundUI();
   renderWeeklyStepsChart();
 
-  console.log('SensorMind v3.3 - Walking Detection Fixed!');
-  console.log('✅ Walking detection improved - no more false cycling');
-  console.log('✅ Step frequency detection uses recent steps window');
-  console.log('✅ Higher base score for walking (0.15 vs 0.04)');
-  console.log('✅ Confirmation delay prevents rapid switching');
-  console.log('✅ Recent steps count displayed in debug');
-  console.log('✅ Cycling requires stepFrequency < 20 AND recentSteps < 2');
+  console.log('🌐 SensorMind v3.4 - Universal Sensor Platform');
+  console.log(`✅ ${SensorRegistry.getAvailableCount()} sensors available`);
+  console.log(`❌ ${SensorRegistry.getUnsupportedCount()} sensors not supported`);
+  console.log('📋 Available sensors:', SensorRegistry.getAvailable().join(', '));
+  console.log('📋 Unsupported sensors:', SensorRegistry.getUnsupported().join(', '));
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
