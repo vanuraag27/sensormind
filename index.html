@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>SensorMind — Universal Sensor Platform</title>
+<title>SensorMind — Universal Sensor + GPS Survey</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
@@ -111,7 +111,6 @@
   .status-val{font-family:'JetBrains Mono',monospace;color:var(--text-bright);font-weight:500;}
   .status-val.na{color:var(--text-dim); font-style:italic;}
   .status-val.good{color:var(--green);} .status-val.warn{color:var(--amber);}
-  .status-val.unsupported{color:var(--text-dim); font-style:italic; opacity:0.6;}
 
   .scope{margin:0 20px 8px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel);}
   .scope-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 0;}
@@ -133,6 +132,19 @@
   .sensor-readout{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text-bright);line-height:1.65;}
   .sensor-readout b{color:var(--teal);font-weight:600;}
   .sensor-meta{font-size:10px;color:var(--text-dim);margin-top:6px;font-family:'JetBrains Mono',monospace;}
+
+  /* Land Survey Styles */
+  .survey-card{background:var(--panel);border:2px solid var(--teal);border-radius:14px;padding:16px;margin:8px 20px;}
+  .survey-card.recording{border-color:var(--red);background:rgba(255,107,107,0.05);}
+  .survey-points{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .survey-point{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:10px;font-family:'JetBrains Mono',monospace;}
+  .survey-point .idx{color:var(--amber);font-weight:600;}
+  .survey-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;}
+  .survey-stat{background:var(--panel2);border-radius:8px;padding:8px;text-align:center;}
+  .survey-stat .label{font-size:9px;color:var(--text-dim);text-transform:uppercase;}
+  .survey-stat .value{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text-bright);}
+  .survey-stat .value.good{color:var(--green);}
+  .survey-stat .value.warn{color:var(--amber);}
 
   .week-chart{display:flex;align-items:flex-end;gap:6px;height:100px;padding:10px 2px 0;}
   .week-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;}
@@ -302,7 +314,6 @@
 
   .btn-secondary.disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
 
-  /* Sensor Status Summary */
   .sensor-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:8px;}
   .sensor-badge{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;text-align:center;font-size:10px;}
   .sensor-badge .icon{font-size:16px;display:block;margin-bottom:2px;}
@@ -315,6 +326,8 @@
   .compatibility-notice{background:rgba(255,184,77,0.08);border:1px solid rgba(255,184,77,0.2);border-radius:10px;padding:12px 16px;margin:8px 20px;}
   .compatibility-notice .title{font-weight:600;color:var(--amber);font-size:13px;}
   .compatibility-notice .detail{font-size:12px;color:var(--text-dim);margin-top:4px;}
+
+  #surveyMap{width:100%;height:200px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;margin-top:10px;}
 </style>
 </head>
 <body>
@@ -329,17 +342,17 @@
     </svg>
   </div>
   <h1>SensorMind</h1>
-  <div class="tagline">"Universal Sensor Platform — Detects & Adapts"</div>
+  <div class="tagline">"Universal Sensor Platform + GPS Land Survey"</div>
 
   <div class="perm-explain">
     <div class="perm-row"><div class="perm-icon">📈</div><div><div class="perm-row-title">Motion Sensors</div><div class="perm-row-desc">Used for activity detection, step counting, and gesture recognition. Required for core functionality.</div></div></div>
-    <div class="perm-row"><div class="perm-icon">📍</div><div><div class="perm-row-title">Location (Optional)</div><div class="perm-row-desc">Enables travel speed, distance tracking, and place context. Disable for maximum privacy.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">📍</div><div><div class="perm-row-title">Location (Required for Land Survey)</div><div class="perm-row-desc">Enables GPS positioning, land area calculation, and distance tracking. Required for survey features.</div></div></div>
     <div class="perm-row"><div class="perm-icon">🔔</div><div><div class="perm-row-title">Notifications (Optional)</div><div class="perm-row-desc">Alerts for step goals, automations, and fall detection. Only requested if you enable them.</div></div></div>
     <div class="perm-row"><div class="perm-icon">🔋</div><div><div class="perm-row-title">Device state</div><div class="perm-row-desc">Battery, network and screen state, when your browser exposes them.</div></div></div>
   </div>
 
-  <button class="btn-primary" id="enableMotionBtn">Enable All Available Sensors</button>
-  <button class="btn-secondary" id="enableLocationBtn" style="margin-top:8px;">Enable Location (Optional)</button>
+  <button class="btn-primary" id="enableMotionBtn">Enable All Sensors (GPS + Motion)</button>
+  <button class="btn-secondary" id="enableLocationBtn" style="margin-top:8px;">Enable Location Only</button>
   <div class="fine">Everything runs on-device. Sensor data is processed locally and is not uploaded by SensorMind.</div>
 </div>
 
@@ -369,7 +382,6 @@
   <div class="sim-banner" id="simBanner">SIMULATION MODE — values are generated, not real sensor readings</div>
   <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — sensor-derived processing is paused</div>
 
-  <!-- Compatibility Notice -->
   <div class="compatibility-notice" id="compatNotice">
     <div class="title">🔄 Sensor Compatibility Check</div>
     <div class="detail" id="compatDetail">Detecting available sensors on your device...</div>
@@ -432,6 +444,38 @@
       <div class="card status-grid" id="envGrid"></div>
     </div>
     </div>
+    </div>
+
+    <!-- GPS Land Survey Card -->
+    <div class="survey-card" id="surveyCard">
+      <div class="section-title" style="margin:0 0 8px;">🌍 GPS Land Survey</div>
+      
+      <div class="status-row"><span class="status-key">Status</span><span class="status-val" id="surveyStatus">Ready</span></div>
+      <div class="status-row"><span class="status-key">Points</span><span class="status-val" id="surveyPointCount">0</span></div>
+      <div class="status-row"><span class="status-key">Current Position</span><span class="status-val mono" id="currentPosition">Waiting for GPS...</span></div>
+      
+      <div class="survey-points" id="surveyPointsList"></div>
+      
+      <div class="survey-stats" id="surveyStats">
+        <div class="survey-stat"><div class="label">Area</div><div class="value" id="surveyArea">0.00 m²</div></div>
+        <div class="survey-stat"><div class="label">Perimeter</div><div class="value" id="surveyPerimeter">0.00 m</div></div>
+        <div class="survey-stat"><div class="label">Accuracy</div><div class="value" id="surveyAccuracy">—</div></div>
+      </div>
+      
+      <canvas id="surveyMap"></canvas>
+      
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn-primary" id="surveyStartBtn" style="flex:2;">📍 Start Survey</button>
+        <button class="btn-secondary" id="surveyAddPointBtn" style="flex:1;">➕ Add Point</button>
+        <button class="btn-secondary" id="surveyResetBtn" style="flex:1;">🗑️ Reset</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="surveyExportBtn" style="flex:1;">📤 Export</button>
+        <button class="btn-secondary" id="surveyUndoBtn" style="flex:1;">↩️ Undo</button>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:8px;">
+        Walk the perimeter of the land and tap "Add Point" at each corner. Area is calculated using the Shoelace formula.
+      </div>
     </div>
 
     <div class="card" style="margin:8px 20px 0;">
@@ -521,6 +565,7 @@
             <option value="LeaveHome">Leave Home</option>
             <option value="ArriveWork">Arrive Work</option>
             <option value="LeaveWork">Leave Work</option>
+            <option value="SurveyComplete">Survey Complete</option>
           </select>
         </div>
         <div class="builder-step">
@@ -583,6 +628,7 @@
         <span class="ask-chip" data-q="What automations ran today?">Automations today?</span>
         <span class="ask-chip" data-q="How far did I walk today?">How far did I walk?</span>
         <span class="ask-chip" data-q="Show my weekly summary">Weekly summary</span>
+        <span class="ask-chip" data-q="Calculate land area from points">Calculate land area</span>
       </div>
       <div id="askAnswer" class="ask-answer" style="display:none;"></div>
 
@@ -830,254 +876,6 @@
 <script>
 (() => {
   'use strict';
-
-  // ============================================================
-  // UNIVERSAL SENSOR DETECTION SYSTEM
-  // ============================================================
-  const SensorRegistry = {
-    sensors: {},
-    
-    // Complete list of all possible smartphone sensors
-    ALL_SENSORS: [
-      { id: 'accelerometer', name: 'Accelerometer', icon: '📈', api: 'DeviceMotionEvent', required: true, desc: 'Measures acceleration & tilt' },
-      { id: 'gyroscope', name: 'Gyroscope', icon: '🔄', api: 'DeviceOrientationEvent', required: false, desc: 'Measures rotation rate' },
-      { id: 'magnetometer', name: 'Magnetometer', icon: '🧲', api: 'DeviceOrientationEvent', required: false, desc: 'Digital compass' },
-      { id: 'gps', name: 'GPS / GNSS', icon: '📍', api: 'geolocation', required: false, desc: 'Satellite positioning' },
-      { id: 'proximity', name: 'Proximity Sensor', icon: '👋', api: 'ProximitySensor', required: false, desc: 'Detects nearby objects' },
-      { id: 'ambientLight', name: 'Ambient Light', icon: '☀️', api: 'AmbientLightSensor', required: false, desc: 'Measures brightness' },
-      { id: 'barometer', name: 'Barometer', icon: '🌡️', api: 'BarometerSensor', required: false, desc: 'Measures air pressure' },
-      { id: 'heartRate', name: 'Heart Rate', icon: '❤️', api: 'heartRate', required: false, desc: 'Optical heart rate monitor' },
-      { id: 'fingerprint', name: 'Fingerprint', icon: '🔐', api: 'fingerprint', required: false, desc: 'Biometric authentication' },
-      { id: 'microphone', name: 'Microphone', icon: '🎤', api: 'getUserMedia', required: false, desc: 'Audio capture' },
-      { id: 'camera', name: 'Camera', icon: '📷', api: 'getUserMedia', required: false, desc: 'Image capture' },
-      { id: 'battery', name: 'Battery Status', icon: '🔋', api: 'getBattery', required: false, desc: 'Battery level & charging' },
-      { id: 'network', name: 'Network Info', icon: '📶', api: 'NetworkInformation', required: false, desc: 'Connection type & speed' },
-      { id: 'ambientTemp', name: 'Temperature', icon: '🌡️', api: 'AmbientTemperatureSensor', required: false, desc: 'Ambient temperature' },
-      { id: 'humidity', name: 'Humidity', icon: '💧', api: 'HumiditySensor', required: false, desc: 'Relative humidity' }
-    ],
-    
-    // Detect all available sensors
-    detectAll() {
-      console.log('🔍 Detecting all available sensors...');
-      const results = {};
-      let availableCount = 0;
-      let unsupportedCount = 0;
-      
-      for (const sensorDef of this.ALL_SENSORS) {
-        const status = this.detectSensor(sensorDef);
-        results[sensorDef.id] = status;
-        if (status.available) availableCount++;
-        if (status.unsupported) unsupportedCount++;
-        console.log(`  ${sensorDef.icon} ${sensorDef.name}: ${status.available ? '✅ AVAILABLE' : status.unsupported ? '❌ NOT SUPPORTED' : '⚠️ REQUIRES PERMISSION'}`);
-      }
-      
-      this.sensors = results;
-      this._availableCount = availableCount;
-      this._unsupportedCount = unsupportedCount;
-      
-      // Update UI
-      this.updateUI();
-      
-      return results;
-    },
-    
-    // Detect a single sensor
-    detectSensor(sensorDef) {
-      const result = { available: false, unsupported: false, permission: 'unknown' };
-      
-      try {
-        switch (sensorDef.id) {
-          case 'accelerometer':
-            result.available = 'DeviceMotionEvent' in window;
-            if (result.available && typeof DeviceMotionEvent.requestPermission === 'function') {
-              result.permission = 'prompt';
-            }
-            break;
-            
-          case 'gyroscope':
-            result.available = 'DeviceOrientationEvent' in window;
-            if (result.available) {
-              // Check if we can actually get data
-              try {
-                const test = new DeviceOrientationEvent('test');
-                result.available = true;
-              } catch (e) {
-                result.available = false;
-              }
-            }
-            break;
-            
-          case 'magnetometer':
-            result.available = 'DeviceOrientationEvent' in window;
-            break;
-            
-          case 'gps':
-            result.available = 'geolocation' in navigator;
-            if (result.available) {
-              result.permission = 'prompt';
-            }
-            break;
-            
-          case 'proximity':
-            result.available = 'ProximitySensor' in window;
-            break;
-            
-          case 'ambientLight':
-            result.available = 'AmbientLightSensor' in window;
-            break;
-            
-          case 'barometer':
-            result.available = 'BarometerSensor' in window;
-            break;
-            
-          case 'heartRate':
-            result.available = 'heartRate' in navigator;
-            break;
-            
-          case 'fingerprint':
-            result.available = 'fingerprint' in navigator || 'Fingerprint' in window;
-            break;
-            
-          case 'microphone':
-          case 'camera':
-            result.available = 'getUserMedia' in navigator || 'webkitGetUserMedia' in navigator;
-            result.permission = 'prompt';
-            break;
-            
-          case 'battery':
-            result.available = 'getBattery' in navigator;
-            break;
-            
-          case 'network':
-            result.available = 'connection' in navigator;
-            break;
-            
-          case 'ambientTemp':
-            result.available = 'AmbientTemperatureSensor' in window;
-            break;
-            
-          case 'humidity':
-            result.available = 'HumiditySensor' in window;
-            break;
-            
-          default:
-            result.unsupported = true;
-        }
-      } catch (e) {
-        result.unsupported = true;
-        result.available = false;
-      }
-      
-      // If not available and not explicitly unsupported, it might require permissions
-      if (!result.available && !result.unsupported) {
-        result.permission = 'unknown';
-      }
-      
-      return result;
-    },
-    
-    // Check if a specific sensor is available
-    isAvailable(sensorId) {
-      return this.sensors[sensorId]?.available || false;
-    },
-    
-    // Get list of available sensors
-    getAvailable() {
-      return Object.keys(this.sensors).filter(id => this.sensors[id].available);
-    },
-    
-    // Get list of unsupported sensors
-    getUnsupported() {
-      return Object.keys(this.sensors).filter(id => this.sensors[id].unsupported);
-    },
-    
-    // Get count of available sensors
-    getAvailableCount() {
-      return this._availableCount || 0;
-    },
-    
-    // Get count of unsupported sensors
-    getUnsupportedCount() {
-      return this._unsupportedCount || 0;
-    },
-    
-    // Update UI with sensor status
-    updateUI() {
-      const total = this.ALL_SENSORS.length;
-      const available = this.getAvailableCount();
-      const unsupported = this.getUnsupportedCount();
-      const pending = total - available - unsupported;
-      
-      // Update sensor count
-      const countEl = document.getElementById('sensorCount');
-      if (countEl) {
-        countEl.textContent = `${available}/${total}`;
-      }
-      
-      // Update compatibility notice
-      const compatDetail = document.getElementById('compatDetail');
-      if (compatDetail) {
-        if (available === 0) {
-          compatDetail.textContent = '⚠️ No sensors detected. Your browser may not support sensor APIs.';
-        } else if (unsupported > 0) {
-          compatDetail.textContent = `✅ ${available} sensors available, ${unsupported} not supported on this device, ${pending} require permissions.`;
-        } else {
-          compatDetail.textContent = `✅ All ${available} sensors available on this device.`;
-        }
-      }
-      
-      // Render sensor grid
-      this.renderSensorGrid();
-      this.renderSensorSummary();
-    },
-    
-    // Render full sensor grid
-    renderSensorGrid() {
-      const grid = document.getElementById('sensorFullGrid');
-      if (!grid) return;
-      
-      grid.innerHTML = this.ALL_SENSORS.map(sensor => {
-        const status = this.sensors[sensor.id] || { available: false, unsupported: true };
-        const isActive = status.available && (sensor.id === 'accelerometer' || sensor.id === 'gyroscope' || sensor.id === 'magnetometer');
-        const isUnsupported = status.unsupported;
-        const val = isUnsupported ? 'Not supported' : (status.available ? 'Available' : 'Requires permission');
-        
-        return `
-          <div class="sensor-card ${isUnsupported ? 'unsupported' : (status.available ? '' : 'unavailable')}">
-            <div class="sensor-card-head">
-              <span class="sensor-name">${sensor.icon} ${sensor.name}</span>
-              <span class="sensor-status-tag ${isUnsupported ? 'unsupported' : (status.available ? 'tag-active' : 'tag-unavailable')}">
-                ${isUnsupported ? '❌' : (status.available ? '✅' : '⏳')}
-                ${isUnsupported ? 'Unsupported' : (status.available ? 'Active' : 'Permission')}
-              </span>
-            </div>
-            <div class="sensor-readout"><b>${val}</b></div>
-            <div class="sensor-meta">${sensor.desc}</div>
-          </div>
-        `;
-      }).join('');
-    },
-    
-    // Render compact sensor summary
-    renderSensorSummary() {
-      const container = document.getElementById('sensorSummary');
-      if (!container) return;
-      
-      container.innerHTML = this.ALL_SENSORS.map(sensor => {
-        const status = this.sensors[sensor.id] || { available: false, unsupported: true };
-        const cls = status.unsupported ? 'unsupported' : (status.available ? 'available' : 'unavailable');
-        const statusText = status.unsupported ? '✗' : (status.available ? '✓' : '?');
-        
-        return `
-          <div class="sensor-badge ${cls}">
-            <span class="icon">${sensor.icon}</span>
-            <span class="name">${sensor.name}</span>
-            <span class="status">${statusText}</span>
-          </div>
-        `;
-      }).join('');
-    }
-  };
 
   // ============================================================
   // STATE
@@ -1374,14 +1172,6 @@
       this.show('⚠️ Possible Fall Detected', 'Are you OK? Tap to dismiss.', { vibrate: [100, 50, 100, 50, 100, 50, 200], tag: 'fall-alert' });
     },
 
-    showSensorUnsupported(sensorName) {
-      this.show(`⚠️ ${sensorName} Unsupported`, `This device does not support ${sensorName}.`, { vibrate: [50] });
-    },
-
-    showSensorAvailable(sensorName) {
-      this.show(`✅ ${sensorName} Available`, `${sensorName} is ready for use.`, { vibrate: [30] });
-    },
-
     setEnabled(enabled) {
       this._enabled = enabled;
       if (enabled && !this._requested && this._permission !== 'granted') {
@@ -1507,6 +1297,421 @@
   };
 
   // ============================================================
+  // UNIVERSAL SENSOR REGISTRY
+  // ============================================================
+  const SensorRegistry = {
+    sensors: {},
+    
+    ALL_SENSORS: [
+      { id: 'accelerometer', name: 'Accelerometer', icon: '📈', api: 'DeviceMotionEvent', required: true, desc: 'Measures acceleration & tilt' },
+      { id: 'gyroscope', name: 'Gyroscope', icon: '🔄', api: 'DeviceOrientationEvent', required: false, desc: 'Measures rotation rate' },
+      { id: 'magnetometer', name: 'Magnetometer', icon: '🧲', api: 'DeviceOrientationEvent', required: false, desc: 'Digital compass' },
+      { id: 'gps', name: 'GPS / GNSS', icon: '📍', api: 'geolocation', required: false, desc: 'Satellite positioning' },
+      { id: 'proximity', name: 'Proximity Sensor', icon: '👋', api: 'ProximitySensor', required: false, desc: 'Detects nearby objects' },
+      { id: 'ambientLight', name: 'Ambient Light', icon: '☀️', api: 'AmbientLightSensor', required: false, desc: 'Measures brightness' },
+      { id: 'barometer', name: 'Barometer', icon: '🌡️', api: 'BarometerSensor', required: false, desc: 'Measures air pressure' },
+      { id: 'heartRate', name: 'Heart Rate', icon: '❤️', api: 'heartRate', required: false, desc: 'Optical heart rate monitor' },
+      { id: 'fingerprint', name: 'Fingerprint', icon: '🔐', api: 'fingerprint', required: false, desc: 'Biometric authentication' },
+      { id: 'microphone', name: 'Microphone', icon: '🎤', api: 'getUserMedia', required: false, desc: 'Audio capture' },
+      { id: 'camera', name: 'Camera', icon: '📷', api: 'getUserMedia', required: false, desc: 'Image capture' },
+      { id: 'battery', name: 'Battery Status', icon: '🔋', api: 'getBattery', required: false, desc: 'Battery level & charging' },
+      { id: 'network', name: 'Network Info', icon: '📶', api: 'NetworkInformation', required: false, desc: 'Connection type & speed' },
+      { id: 'ambientTemp', name: 'Temperature', icon: '🌡️', api: 'AmbientTemperatureSensor', required: false, desc: 'Ambient temperature' },
+      { id: 'humidity', name: 'Humidity', icon: '💧', api: 'HumiditySensor', required: false, desc: 'Relative humidity' }
+    ],
+    
+    detectAll() {
+      console.log('🔍 Detecting all available sensors...');
+      const results = {};
+      let availableCount = 0;
+      let unsupportedCount = 0;
+      
+      for (const sensorDef of this.ALL_SENSORS) {
+        const status = this.detectSensor(sensorDef);
+        results[sensorDef.id] = status;
+        if (status.available) availableCount++;
+        if (status.unsupported) unsupportedCount++;
+        console.log(`  ${sensorDef.icon} ${sensorDef.name}: ${status.available ? '✅ AVAILABLE' : status.unsupported ? '❌ NOT SUPPORTED' : '⚠️ REQUIRES PERMISSION'}`);
+      }
+      
+      this.sensors = results;
+      this._availableCount = availableCount;
+      this._unsupportedCount = unsupportedCount;
+      this.updateUI();
+      return results;
+    },
+    
+    detectSensor(sensorDef) {
+      const result = { available: false, unsupported: false, permission: 'unknown' };
+      
+      try {
+        switch (sensorDef.id) {
+          case 'accelerometer':
+            result.available = 'DeviceMotionEvent' in window;
+            if (result.available && typeof DeviceMotionEvent.requestPermission === 'function') {
+              result.permission = 'prompt';
+            }
+            break;
+          case 'gyroscope':
+            result.available = 'DeviceOrientationEvent' in window;
+            break;
+          case 'magnetometer':
+            result.available = 'DeviceOrientationEvent' in window;
+            break;
+          case 'gps':
+            result.available = 'geolocation' in navigator;
+            if (result.available) result.permission = 'prompt';
+            break;
+          case 'proximity':
+            result.available = 'ProximitySensor' in window;
+            break;
+          case 'ambientLight':
+            result.available = 'AmbientLightSensor' in window;
+            break;
+          case 'barometer':
+            result.available = 'BarometerSensor' in window;
+            break;
+          case 'heartRate':
+            result.available = 'heartRate' in navigator;
+            break;
+          case 'fingerprint':
+            result.available = 'fingerprint' in navigator || 'Fingerprint' in window;
+            break;
+          case 'microphone':
+          case 'camera':
+            result.available = 'getUserMedia' in navigator || 'webkitGetUserMedia' in navigator;
+            result.permission = 'prompt';
+            break;
+          case 'battery':
+            result.available = 'getBattery' in navigator;
+            break;
+          case 'network':
+            result.available = 'connection' in navigator;
+            break;
+          case 'ambientTemp':
+            result.available = 'AmbientTemperatureSensor' in window;
+            break;
+          case 'humidity':
+            result.available = 'HumiditySensor' in window;
+            break;
+          default:
+            result.unsupported = true;
+        }
+      } catch (e) {
+        result.unsupported = true;
+        result.available = false;
+      }
+      
+      if (!result.available && !result.unsupported) {
+        result.permission = 'unknown';
+      }
+      
+      return result;
+    },
+    
+    getAvailable() {
+      return Object.keys(this.sensors).filter(id => this.sensors[id].available);
+    },
+    
+    getUnsupported() {
+      return Object.keys(this.sensors).filter(id => this.sensors[id].unsupported);
+    },
+    
+    getAvailableCount() {
+      return this._availableCount || 0;
+    },
+    
+    getUnsupportedCount() {
+      return this._unsupportedCount || 0;
+    },
+    
+    updateUI() {
+      const total = this.ALL_SENSORS.length;
+      const available = this.getAvailableCount();
+      const unsupported = this.getUnsupportedCount();
+      const pending = total - available - unsupported;
+      
+      const countEl = document.getElementById('sensorCount');
+      if (countEl) countEl.textContent = `${available}/${total}`;
+      
+      const compatDetail = document.getElementById('compatDetail');
+      if (compatDetail) {
+        if (available === 0) {
+          compatDetail.textContent = '⚠️ No sensors detected. Your browser may not support sensor APIs.';
+        } else if (unsupported > 0) {
+          compatDetail.textContent = `✅ ${available} sensors available, ${unsupported} not supported on this device, ${pending} require permissions.`;
+        } else {
+          compatDetail.textContent = `✅ All ${available} sensors available on this device.`;
+        }
+      }
+      
+      this.renderSensorGrid();
+      this.renderSensorSummary();
+    },
+    
+    renderSensorGrid() {
+      const grid = document.getElementById('sensorFullGrid');
+      if (!grid) return;
+      
+      grid.innerHTML = this.ALL_SENSORS.map(sensor => {
+        const status = this.sensors[sensor.id] || { available: false, unsupported: true };
+        const isUnsupported = status.unsupported;
+        const val = isUnsupported ? 'Not supported' : (status.available ? 'Available' : 'Requires permission');
+        
+        return `
+          <div class="sensor-card ${isUnsupported ? 'unsupported' : (status.available ? '' : 'unavailable')}">
+            <div class="sensor-card-head">
+              <span class="sensor-name">${sensor.icon} ${sensor.name}</span>
+              <span class="sensor-status-tag ${isUnsupported ? 'unsupported' : (status.available ? 'tag-active' : 'tag-unavailable')}">
+                ${isUnsupported ? '❌' : (status.available ? '✅' : '⏳')}
+                ${isUnsupported ? 'Unsupported' : (status.available ? 'Active' : 'Permission')}
+              </span>
+            </div>
+            <div class="sensor-readout"><b>${val}</b></div>
+            <div class="sensor-meta">${sensor.desc}</div>
+          </div>
+        `;
+      }).join('');
+    },
+    
+    renderSensorSummary() {
+      const container = document.getElementById('sensorSummary');
+      if (!container) return;
+      
+      container.innerHTML = this.ALL_SENSORS.map(sensor => {
+        const status = this.sensors[sensor.id] || { available: false, unsupported: true };
+        const cls = status.unsupported ? 'unsupported' : (status.available ? 'available' : 'unavailable');
+        const statusText = status.unsupported ? '✗' : (status.available ? '✓' : '?');
+        
+        return `
+          <div class="sensor-badge ${cls}">
+            <span class="icon">${sensor.icon}</span>
+            <span class="name">${sensor.name}</span>
+            <span class="status">${statusText}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  };
+
+  // ============================================================
+  // GPS LAND SURVEY ENGINE
+  // ============================================================
+  const SurveyEngine = {
+    points: [],
+    isSurveying: false,
+    currentPosition: null,
+    
+    addPoint(lat, lng, accuracy) {
+      if (!this.isSurveying) {
+        showToast('Start a survey first!');
+        return false;
+      }
+      const point = { lat, lng, accuracy: accuracy || 0, timestamp: Date.now() };
+      this.points.push(point);
+      this.updateUI();
+      return true;
+    },
+    
+    undoPoint() {
+      if (this.points.length === 0) return false;
+      this.points.pop();
+      this.updateUI();
+      return true;
+    },
+    
+    calculateArea() {
+      if (this.points.length < 3) return 0;
+      let area = 0;
+      const n = this.points.length;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        area += (this.points[i].lat * this.points[j].lng - this.points[j].lat * this.points[i].lng);
+      }
+      area = Math.abs(area) / 2;
+      const avgLat = this.points.reduce((s, p) => s + p.lat, 0) / this.points.length;
+      const metersPerDegree = 111320 * Math.cos(avgLat * Math.PI / 180);
+      area = area * metersPerDegree * metersPerDegree;
+      return area;
+    },
+    
+    calculatePerimeter() {
+      if (this.points.length < 2) return 0;
+      let perimeter = 0;
+      const n = this.points.length;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        perimeter += haversine(this.points[i].lat, this.points[i].lng, this.points[j].lat, this.points[j].lng);
+      }
+      return perimeter;
+    },
+    
+    getSummary() {
+      const area = this.calculateArea();
+      const perimeter = this.calculatePerimeter();
+      return { points: this.points.length, area, perimeter, isComplete: this.points.length >= 3 };
+    },
+    
+    reset() {
+      this.points = [];
+      this.isSurveying = false;
+      this.currentPosition = null;
+      this.updateUI();
+      showToast('Survey reset');
+    },
+    
+    updateUI() {
+      const summary = this.getSummary();
+      
+      document.getElementById('surveyPointCount').textContent = summary.points;
+      
+      const areaEl = document.getElementById('surveyArea');
+      if (summary.area > 10000) {
+        areaEl.textContent = (summary.area / 10000).toFixed(2) + ' ha';
+      } else {
+        areaEl.textContent = summary.area.toFixed(2) + ' m²';
+      }
+      
+      document.getElementById('surveyPerimeter').textContent = summary.perimeter.toFixed(2) + ' m';
+      
+      if (this.points.length > 0) {
+        const avgAccuracy = this.points.reduce((s, p) => s + p.accuracy, 0) / this.points.length;
+        const accEl = document.getElementById('surveyAccuracy');
+        if (avgAccuracy < 10) { accEl.textContent = 'Excellent'; accEl.className = 'value good'; }
+        else if (avgAccuracy < 20) { accEl.textContent = 'Good'; accEl.className = 'value'; }
+        else { accEl.textContent = 'Poor'; accEl.className = 'value warn'; }
+      }
+      
+      const statusEl = document.getElementById('surveyStatus');
+      if (this.isSurveying) {
+        statusEl.textContent = '🔴 Surveying...';
+        statusEl.className = 'status-val warn';
+        document.getElementById('surveyCard').classList.add('recording');
+      } else if (this.points.length >= 3) {
+        statusEl.textContent = '✅ Survey Complete';
+        statusEl.className = 'status-val good';
+        document.getElementById('surveyCard').classList.remove('recording');
+      } else if (this.points.length > 0) {
+        statusEl.textContent = '⏳ Adding points...';
+        statusEl.className = 'status-val';
+        document.getElementById('surveyCard').classList.remove('recording');
+      } else {
+        statusEl.textContent = '🟢 Ready';
+        statusEl.className = 'status-val';
+        document.getElementById('surveyCard').classList.remove('recording');
+      }
+      
+      const listEl = document.getElementById('surveyPointsList');
+      listEl.innerHTML = this.points.map((p, i) => 
+        `<span class="survey-point"><span class="idx">#${i + 1}</span> ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span>`
+      ).join('');
+      
+      this.drawMap();
+    },
+    
+    drawMap() {
+      const canvas = document.getElementById('surveyMap');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width = canvas.clientWidth || 300;
+      const h = canvas.height = canvas.clientHeight || 200;
+      
+      ctx.clearRect(0, 0, w, h);
+      
+      ctx.strokeStyle = 'rgba(107,115,133,0.1)';
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x < w; x += 20) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 20) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      
+      if (this.points.length < 2) {
+        ctx.fillStyle = 'var(--text-dim)';
+        ctx.font = '14px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Add at least 2 points to see map', w/2, h/2);
+        return;
+      }
+      
+      let minLat = Infinity, maxLat = -Infinity;
+      let minLng = Infinity, maxLng = -Infinity;
+      
+      for (const p of this.points) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+      
+      const latRange = maxLat - minLat || 0.0001;
+      const lngRange = maxLng - minLng || 0.0001;
+      const padding = 40;
+      const scaleX = (w - padding * 2) / lngRange;
+      const scaleY = (h - padding * 2) / latRange;
+      const scale = Math.min(scaleX, scaleY);
+      const offsetX = (w - lngRange * scale) / 2;
+      const offsetY = (h - latRange * scale) / 2;
+      
+      const toX = (lng) => offsetX + (lng - minLng) * scale;
+      const toY = (lat) => offsetY + (maxLat - lat) * scale;
+      
+      ctx.beginPath();
+      for (let i = 0; i < this.points.length; i++) {
+        const x = toX(this.points[i].lng);
+        const y = toY(this.points[i].lat);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      
+      if (this.points.length >= 3) {
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(77,217,196,0.15)';
+        ctx.fill();
+      }
+      
+      ctx.strokeStyle = '#4DD9C4';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      for (let i = 0; i < this.points.length; i++) {
+        const x = toX(this.points[i].lng);
+        const y = toY(this.points[i].lat);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = i === this.points.length - 1 ? '#FFB84D' : '#4DD9C4';
+        ctx.fill();
+        ctx.strokeStyle = 'var(--bg)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = 'var(--text-bright)';
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(i + 1, x, y - 12);
+      }
+      
+      if (this.points.length >= 3) {
+        const area = this.calculateArea();
+        const label = area > 10000 ? (area / 10000).toFixed(1) + ' ha' : area.toFixed(0) + ' m²';
+        ctx.fillStyle = 'var(--amber)';
+        ctx.font = '12px Space Grotesk, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Area: ' + label, w/2, 20);
+      }
+    }
+  };
+
+  // ============================================================
   // NAVIGATION
   // ============================================================
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1528,13 +1733,26 @@
   });
 
   // ============================================================
-  // SENSOR MANAGER
+  // SENSOR MANAGER - FIXED
   // ============================================================
+  function enableAllSensors() {
+    showToast('🔍 Enabling all available sensors...');
+    // Detect sensors first
+    SensorRegistry.detectAll();
+    
+    // Enable motion sensors
+    enableMotionSensors();
+    
+    // Enable location with a slight delay
+    setTimeout(() => {
+      enableLocationSensors();
+    }, 800);
+  }
+
   function enableMotionSensors() {
     if (state._motionEnabled) { showToast('Motion sensors already enabled'); return; }
     state._motionEnabled = true;
 
-    // Check which sensors are available and notify
     const availableSensors = SensorRegistry.getAvailable();
     const unsupportedSensors = SensorRegistry.getUnsupported();
     
@@ -1544,18 +1762,9 @@
         return def ? def.name : id;
       });
       showToast(`⚠️ ${unsupportedSensors.length} sensor(s) not supported on this device`);
-      
-      // Notify about unsupported sensors
-      for (const id of unsupportedSensors) {
-        const def = SensorRegistry.ALL_SENSORS.find(s => s.id === id);
-        if (def) NotificationSystem.showSensorUnsupported(def.name);
-      }
-      
-      // Log unsupported sensors
       console.log('❌ Unsupported sensors:', unsupportedSensors.join(', '));
     }
     
-    // Notify about available sensors
     for (const id of availableSensors) {
       const def = SensorRegistry.ALL_SENSORS.find(s => s.id === id);
       if (def) console.log(`✅ ${def.name} available`);
@@ -1572,10 +1781,9 @@
       }
     } else {
       enableSimMode('DeviceMotionEvent unsupported');
-      NotificationSystem.showSensorUnsupported('Accelerometer');
     }
 
-    // Enable gyroscope and magnetometer (orientation)
+    // Enable gyroscope and magnetometer
     if ('DeviceOrientationEvent' in window) {
       const handler = e => {
         state.orientation = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
@@ -1583,11 +1791,9 @@
       window.addEventListener('deviceorientation', handler);
       state._listenerCleanup.push(() => window.removeEventListener('deviceorientation', handler));
       console.log('✅ Gyroscope/Magnetometer orientation enabled');
-    } else {
-      NotificationSystem.showSensorUnsupported('Gyroscope');
     }
 
-    // Enable ambient light sensor if available
+    // Enable ambient light sensor
     if ('AmbientLightSensor' in window) {
       try {
         const sensor = new AmbientLightSensor();
@@ -1602,7 +1808,7 @@
       }
     }
 
-    // Enable proximity sensor if available
+    // Enable proximity sensor
     if ('ProximitySensor' in window) {
       try {
         const sensor = new ProximitySensor();
@@ -1636,6 +1842,18 @@
         pos => {
           const accuracy = pos.coords.accuracy;
           const goodFix = !accuracy || accuracy <= 50;
+          
+          SurveyEngine.currentPosition = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 0
+          };
+          
+          const posEl = document.getElementById('currentPosition');
+          if (posEl) {
+            posEl.textContent = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)} ±${Math.round(pos.coords.accuracy || 0)}m`;
+          }
+          
           if (goodFix) {
             state.speed = Math.round((pos.coords.speed || 0) * 3.6);
           }
@@ -1669,16 +1887,20 @@
               state._wasWork = false;
             }
           }
+          
+          SurveyEngine.updateUI();
         },
-        () => { state.speed = 0; },
+        () => { 
+          state.speed = 0;
+          const posEl = document.getElementById('currentPosition');
+          if (posEl) posEl.textContent = '⚠️ GPS signal lost';
+        },
         { enableHighAccuracy: true }
       );
       state._listenerCleanup.push(() => navigator.geolocation.clearWatch(watchId));
-      showToast('📍 Location enabled. GPS accuracy improves outdoors.');
-      NotificationSystem.showSensorAvailable('GPS');
+      showToast('📍 GPS enabled - Land Survey ready!');
     } else {
       showToast('Geolocation not supported in this browser');
-      NotificationSystem.showSensorUnsupported('GPS');
     }
   }
 
@@ -1729,9 +1951,6 @@
     }
   }
 
-  // ============================================================
-  // SIMULATION ENGINE
-  // ============================================================
   function runSimulationLoop() {
     if (!state.isSim && state.overrideMode === 'auto') return;
     const time = Date.now() * 0.003;
@@ -2093,8 +2312,6 @@
   function processAccel(mag) {
     state.accel.history.push(mag);
     if (state.accel.history.length > 60) state.accel.history.shift();
-
-    const variance = getVariance(state.accel.history.slice(-30));
 
     const prevMag = state.accel.history[state.accel.history.length - 2] || mag;
     const delta = Math.abs(mag - prevMag);
@@ -2569,7 +2786,7 @@
     ]).then(([automations, gestures, places, sessions, events, activities, preferences]) => {
       const data = {
         timestamp: new Date().toISOString(),
-        version: '3.4',
+        version: '3.5',
         automations, gestures, places, sessions, events, activities, preferences,
         sensors: SensorRegistry.sensors,
         calibration: { calibrated: state._calibrated, baseline: state._calibrationBaseline }
@@ -2643,7 +2860,6 @@
       <div class="status-row"><span class="status-key">Motion State</span><span class="status-val">${state.accel.mag > 1.2 ? 'Active' : 'Resting'}</span></div>
     `;
 
-    // Sensor grid is rendered by SensorRegistry
     SensorRegistry.updateUI();
 
     $('playShake').textContent = state.shakeIntensity.toFixed(2);
@@ -3069,6 +3285,118 @@
   };
 
   // ============================================================
+  // SURVEY INIT
+  // ============================================================
+  function initSurvey() {
+    const startBtn = document.getElementById('surveyStartBtn');
+    const addBtn = document.getElementById('surveyAddPointBtn');
+    const resetBtn = document.getElementById('surveyResetBtn');
+    const undoBtn = document.getElementById('surveyUndoBtn');
+    const exportBtn = document.getElementById('surveyExportBtn');
+    
+    startBtn.addEventListener('click', function() {
+      if (!state._locationEnabled) {
+        showToast('Please enable GPS first!');
+        return;
+      }
+      
+      if (SurveyEngine.isSurveying) {
+        SurveyEngine.isSurveying = false;
+        this.textContent = '📍 Start Survey';
+        this.className = 'btn-primary';
+        if (SurveyEngine.points.length >= 3) {
+          triggerAutomation('SurveyComplete');
+          showToast(`Survey complete! Area: ${SurveyEngine.calculateArea().toFixed(2)} m²`);
+        } else {
+          showToast(`Survey stopped. ${SurveyEngine.points.length} points recorded.`);
+        }
+      } else {
+        if (SurveyEngine.points.length > 0) {
+          if (!confirm('Starting new survey will clear existing points. Continue?')) return;
+          SurveyEngine.points = [];
+        }
+        SurveyEngine.isSurveying = true;
+        this.textContent = '⏹️ Stop Survey';
+        this.className = 'btn-primary';
+        showToast('Survey started! Walk to each corner and tap "Add Point"');
+        
+        if (SurveyEngine.currentPosition) {
+          SurveyEngine.addPoint(
+            SurveyEngine.currentPosition.lat,
+            SurveyEngine.currentPosition.lng,
+            SurveyEngine.currentPosition.accuracy
+          );
+        }
+      }
+      SurveyEngine.updateUI();
+    });
+    
+    addBtn.addEventListener('click', function() {
+      if (!SurveyEngine.isSurveying) {
+        showToast('Start a survey first!');
+        return;
+      }
+      
+      if (!SurveyEngine.currentPosition) {
+        showToast('Waiting for GPS signal...');
+        return;
+      }
+      
+      SurveyEngine.addPoint(
+        SurveyEngine.currentPosition.lat,
+        SurveyEngine.currentPosition.lng,
+        SurveyEngine.currentPosition.accuracy
+      );
+      VibrationEngine.vibrate([30]);
+      showToast(`Point ${SurveyEngine.points.length} added`);
+      
+      if (SurveyEngine.points.length >= 3) {
+        const area = SurveyEngine.calculateArea();
+        showToast(`Area so far: ${area.toFixed(2)} m²`);
+      }
+    });
+    
+    resetBtn.addEventListener('click', function() {
+      if (confirm('Reset survey? All points will be lost.')) {
+        SurveyEngine.reset();
+        document.getElementById('surveyStartBtn').textContent = '📍 Start Survey';
+        document.getElementById('surveyStartBtn').className = 'btn-primary';
+        showToast('Survey reset');
+      }
+    });
+    
+    undoBtn.addEventListener('click', function() {
+      if (SurveyEngine.undoPoint()) {
+        showToast('Last point removed');
+      } else {
+        showToast('No points to undo');
+      }
+    });
+    
+    exportBtn.addEventListener('click', function() {
+      if (SurveyEngine.points.length === 0) {
+        showToast('No survey data to export');
+        return;
+      }
+      
+      const data = {
+        type: 'survey',
+        timestamp: new Date().toISOString(),
+        points: SurveyEngine.points,
+        summary: SurveyEngine.getSummary(),
+        area: SurveyEngine.calculateArea(),
+        perimeter: SurveyEngine.calculatePerimeter()
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `survey-${Date.now()}.json`);
+      showToast('Survey data exported!');
+    });
+    
+    SurveyEngine.updateUI();
+  }
+
+  // ============================================================
   // MAIN LOOP
   // ============================================================
   function startEngine() {
@@ -3297,6 +3625,14 @@
         });
         ans.textContent = `Unsupported sensors: ${names.join(', ')}`;
       }
+    } else if (q.includes('land') || q.includes('area') || q.includes('survey')) {
+      if (SurveyEngine.points.length >= 3) {
+        const area = SurveyEngine.calculateArea();
+        const perimeter = SurveyEngine.calculatePerimeter();
+        ans.textContent = `Survey has ${SurveyEngine.points.length} points. Area: ${area.toFixed(2)} m² (${(area/10000).toFixed(2)} ha). Perimeter: ${perimeter.toFixed(2)} m.`;
+      } else {
+        ans.textContent = `Survey has ${SurveyEngine.points.length} points. Need at least 3 points to calculate area.`;
+      }
     } else {
       ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km. Available sensors: ${SensorRegistry.getAvailableCount()}/${SensorRegistry.ALL_SENSORS.length}`;
     }
@@ -3322,7 +3658,7 @@
   // ============================================================
   // EVENT BINDINGS
   // ============================================================
-  $('enableMotionBtn').addEventListener('click', enableMotionSensors);
+  $('enableMotionBtn').addEventListener('click', enableAllSensors);
   $('enableLocationBtn').addEventListener('click', enableLocationSensors);
 
   $('soundToggleBtn').addEventListener('click', toggleSound);
@@ -3458,6 +3794,9 @@
     state._cadence = 0;
     _lastPosition = null;
     SoundEngine._lastStepSound = 0;
+    SurveyEngine.points = [];
+    SurveyEngine.isSurveying = false;
+    SurveyEngine.updateUI();
     renderTimeline();
     renderAutomationHistory();
     renderDailySummary();
@@ -3866,11 +4205,15 @@
   updateSoundUI();
   renderWeeklyStepsChart();
 
-  console.log('🌐 SensorMind v3.4 - Universal Sensor Platform');
+  // Initialize Survey
+  initSurvey();
+
+  console.log('🌐 SensorMind v3.5 - Universal Sensor + GPS Survey');
   console.log(`✅ ${SensorRegistry.getAvailableCount()} sensors available`);
   console.log(`❌ ${SensorRegistry.getUnsupportedCount()} sensors not supported`);
   console.log('📋 Available sensors:', SensorRegistry.getAvailable().join(', '));
   console.log('📋 Unsupported sensors:', SensorRegistry.getUnsupported().join(', '));
+  console.log('🗺️ GPS Land Survey ready');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
