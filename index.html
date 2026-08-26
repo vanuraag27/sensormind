@@ -843,7 +843,9 @@
     MAX_LAB_DURATION: 300,
     MAX_IMPORT_RULES: 50,
     MAX_RULE_NAME_LENGTH: 100,
-    MAX_GESTURE_NAME_LENGTH: 30
+    MAX_GESTURE_NAME_LENGTH: 30,
+    STEP_DETECTION_WINDOW: 3000,
+    MIN_STEPS_FOR_CADENCE: 3
   };
 
   // ============================================================
@@ -915,7 +917,16 @@
     _labRecording: false,
     _gestureTimerId: null,
     _gestureRecording: false,
-    _listenerCleanup: []
+    _listenerCleanup: [],
+    _stepBuffer: [],
+    _stepBaseline: 1.0,
+    _stepThreshold: 0.15,
+    _stepConfidence: 0,
+    _cadence: 0,
+    _lastActivityChange: 0,
+    _pendingActivity: null,
+    _pendingConfidence: 0,
+    _activityStable: false
   };
 
   // ============================================================
@@ -1494,13 +1505,25 @@
     let act = state.currentActivity;
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') act = state.overrideMode;
 
+    // Generate realistic walking pattern with clear step peaks
     switch (act) {
-      case 'Walking': baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1; break;
-      case 'Running': baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15; break;
-      case 'Vehicle': baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04; break;
-      case 'Cycling': baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05; break;
-      case 'Public Transport': baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08; break;
-      default: baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
+      case 'Walking': 
+        baseMag = 1.0 + Math.sin(time * 4.5) * 0.3 + Math.sin(time * 7.2) * 0.12 + Math.sin(time * 2.1) * 0.05;
+        break;
+      case 'Running': 
+        baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15 + Math.sin(time * 3) * 0.08;
+        break;
+      case 'Vehicle': 
+        baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04;
+        break;
+      case 'Cycling': 
+        baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05;
+        break;
+      case 'Public Transport': 
+        baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08;
+        break;
+      default: 
+        baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
     }
 
     state.accel.x = Math.sin(time) * 0.5;
@@ -1521,7 +1544,7 @@
   }
 
   // ============================================================
-  // DISTANCE TRACKER (inline)
+  // DISTANCE TRACKER
   // ============================================================
   let _lastPosition = null;
 
@@ -1547,6 +1570,326 @@
 
   function getTotalDistance() { return state._totalDistance; }
   function getActivityDistance(activity) { return state._activityDistances[activity] || 0; }
+
+  // ============================================================
+  // STEP DETECTION - FIXED
+  // ============================================================
+  function detectStep(mag, timestamp) {
+    if (state.dnr) return null;
+
+    state._stepBuffer.push(mag);
+    if (state._stepBuffer.length > 100) state._stepBuffer.shift();
+
+    if (state._stepBuffer.length > 20) {
+      const sorted = [...state._stepBuffer].sort((a, b) => a - b);
+      state._stepBaseline = sorted[Math.floor(sorted.length / 2)];
+      const noise = state._stepBuffer.reduce((s, v) => s + Math.pow(v - state._stepBaseline, 2), 0) / state._stepBuffer.length;
+      state._stepThreshold = Math.max(0.06, Math.min(0.25, Math.sqrt(noise) * 3));
+    }
+
+    const deviation = Math.abs(mag - state._stepBaseline);
+    const history = state._stepBuffer;
+    if (history.length < 3) return null;
+
+    const idx = history.length - 1;
+    const isValley = mag < history[idx - 1] && mag < history[idx - 2];
+    const isPeak = mag > history[idx - 1] && mag > history[idx - 2];
+
+    let prominence = 0;
+    if (isPeak || isValley) {
+      const neighbors = history.slice(-6);
+      const meanNeighbor = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
+      prominence = Math.abs(mag - meanNeighbor);
+    }
+
+    if ((isValley || isPeak) && deviation > state._stepThreshold && prominence > state._stepThreshold * 0.7) {
+      const timeSinceLast = timestamp - state._lastStepTime;
+      const isFirstStep = state._lastStepTime === 0;
+      if (isFirstStep || (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
+        timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX)) {
+        state._lastStepTime = timestamp;
+        state._stepConfidence = Math.min(95, state._stepConfidence + 2);
+        const cadence = isFirstStep ? state._cadence : Math.round(60 / (timeSinceLast / 1000));
+        state._cadence = cadence;
+
+        state._stepTimes.push(timestamp);
+        if (state._stepTimes.length > 100) state._stepTimes.shift();
+
+        return { step: true, cadence: cadence, confidence: state._stepConfidence };
+      }
+    }
+
+    state._stepConfidence = Math.max(0, state._stepConfidence - 0.5);
+    return null;
+  }
+
+  // ============================================================
+  // ACTIVITY CLASSIFICATION - FIXED: Walking detection improved
+  // ============================================================
+  function classifyActivity(magHistory, gyroHistory, gpsData) {
+    if (magHistory.length < 5) return { key: state.currentActivity || 'Stationary', confidence: 50 };
+
+    const filtered = magHistory.slice(-40);
+    if (filtered.length < 3) return { key: state.currentActivity || 'Stationary', confidence: 50 };
+
+    const features = {
+      variance: 0,
+      peak: 0,
+      jerk: 0,
+      stepFrequency: 0,
+      gyroVariance: 0,
+      speed: gpsData.speed || 0,
+      magMean: 0,
+      recentSteps: 0
+    };
+
+    features.magMean = filtered.reduce((a, b) => a + b, 0) / filtered.length;
+    features.variance = filtered.reduce((s, v) => s + Math.pow(v - features.magMean, 2), 0) / filtered.length;
+    features.peak = Math.max(...filtered.map(v => Math.abs(v - 1)));
+
+    let jerkSum = 0;
+    for (let i = 1; i < filtered.length; i++) {
+      jerkSum += Math.abs(filtered[i] - filtered[i - 1]);
+    }
+    features.jerk = jerkSum / filtered.length;
+
+    // Calculate step frequency from recent steps
+    const stepTimes = state._stepTimes || [];
+    if (stepTimes.length > 1) {
+      const recentSteps = stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW);
+      features.recentSteps = recentSteps.length;
+      if (recentSteps.length > 1) {
+        features.stepFrequency = (recentSteps.length / (CONFIG.STEP_DETECTION_WINDOW / 1000)) * 60;
+      }
+    }
+
+    if (gyroHistory && gyroHistory.length > 5) {
+      const gyroMag = gyroHistory.map(g => Math.abs(g.a) + Math.abs(g.b) + Math.abs(g.c));
+      const gyroMean = gyroMag.reduce((a, b) => a + b, 0) / gyroMag.length;
+      features.gyroVariance = gyroMag.reduce((s, v) => s + Math.pow(v - gyroMean, 2), 0) / gyroMag.length;
+    }
+
+    // DEBUG: Log features for walking detection
+    if (features.stepFrequency > 0 && features.variance > 0.01) {
+      console.log('🔍 Walking detection:', {
+        stepFreq: Math.round(features.stepFrequency),
+        variance: features.variance.toFixed(3),
+        recentSteps: features.recentSteps,
+        speed: features.speed,
+        peak: features.peak.toFixed(2)
+      });
+    }
+
+    // Initialize scores - WALKING gets a higher base score
+    const scores = {
+      Stationary: 0.04,
+      Walking: 0.15,  // Higher base score for walking
+      Running: 0.04,
+      Cycling: 0.04,
+      Vehicle: 0.04,
+      'Public Transport': 0.02
+    };
+
+    // STATIONARY detection
+    if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
+      scores.Stationary += 0.7;
+    }
+    if (features.gyroVariance < 2) scores.Stationary += 0.15;
+
+    // ===== WALKING detection - IMPROVED =====
+    // Walking has distinct step pattern with variance between 0.005-0.4 and step frequency 40-135 spm
+    const isWalkingVariance = features.variance > 0.005 && features.variance < 0.4;
+    const isWalkingCadence = features.stepFrequency >= 40 && features.stepFrequency <= 135;
+    const hasRecentSteps = features.recentSteps >= CONFIG.MIN_STEPS_FOR_CADENCE;
+    
+    // Walking requires EITHER cadence OR recent steps + variance
+    const walkingConditionMet = isWalkingVariance && (
+      (isWalkingCadence && hasRecentSteps) || 
+      (hasRecentSteps && features.recentSteps >= 2 && features.variance > 0.008)
+    );
+
+    if (walkingConditionMet) {
+      scores.Walking += 0.6;
+      // Bonus for good cadence
+      if (features.stepFrequency > 60 && features.stepFrequency < 130) {
+        scores.Walking += 0.2;
+      }
+    }
+    
+    // GPS speed support for walking (1.5-8 km/h)
+    if (features.speed !== null && features.speed > 1.5 && features.speed < 8) {
+      scores.Walking += 0.25;
+    }
+    
+    // Gyro variance support for walking (2-20)
+    if (features.gyroVariance > 2 && features.gyroVariance < 20) {
+      scores.Walking += 0.05;
+    }
+
+    // RUNNING detection
+    if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150 && features.recentSteps >= 3) {
+      scores.Running += 0.6;
+    }
+    if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
+
+    // CYCLING detection - only if NOT walking
+    // Cycling has low step frequency but higher speed
+    if (features.speed !== null && features.speed > 10 && features.speed <= 28 && 
+        features.stepFrequency < 20 && features.recentSteps < 2) {
+      scores.Cycling += 0.55;
+    }
+    if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) {
+      scores.Cycling += 0.15;
+    }
+
+    // VEHICLE detection
+    if (features.speed !== null && features.speed > 28 && features.stepFrequency < 20 && features.recentSteps < 2) {
+      scores.Vehicle += Math.min(0.75, features.speed / 70);
+    }
+    if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
+
+    // PUBLIC TRANSPORT detection
+    if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
+      features.peak > 0.5 && features.stepFrequency < 8 && features.recentSteps < 2) {
+      scores['Public Transport'] += 0.12;
+    }
+
+    // Normalize scores
+    const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
+    Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
+
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const winner = sorted[0];
+    const runnerUp = sorted[1] || ['', 0];
+
+    const separation = winner[1] - runnerUp[1];
+    // Higher confidence for walking if separation is good
+    let confidence = Math.min(98, Math.max(30, (winner[1] * 100 + 10) + separation * 20));
+    
+    // Boost confidence for walking if we have strong evidence
+    if (winner[0] === 'Walking' && walkingConditionMet && features.recentSteps >= 3) {
+      confidence = Math.min(95, confidence + 10);
+    }
+
+    return {
+      key: winner[0],
+      confidence: clamp(confidence, 30, 98),
+      scores: scores,
+      separation: separation,
+      quality: confidence > 80 ? 'High' : confidence > 60 ? 'Medium' : 'Low'
+    };
+  }
+
+  // ============================================================
+  // ACTIVITY SETTER - With confirmation delay for stability
+  // ============================================================
+  let _confirmedActivity = 'Stationary';
+  let _candidateActivity = null;
+  let _candidateStartTime = 0;
+  let _confirmationDelay = CONFIG.CONFIRMATION_DELAY;
+
+  function setActivity(newAct, conf) {
+    if (state.dnr) return;
+
+    const now = Date.now();
+    const elapsed = (now - state.activityStartTime) / 1000;
+    if (elapsed > 0.5) {
+      state.activityDurations[state.currentActivity] = (state.activityDurations[state.currentActivity] || 0) + elapsed;
+    }
+    state.activityStartTime = now;
+
+    // If same activity, just update confidence
+    if (state.currentActivity === newAct) {
+      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 5);
+      return;
+    }
+
+    // Use confirmation delay to prevent rapid switching
+    if (newAct !== _candidateActivity) {
+      _candidateActivity = newAct;
+      _candidateStartTime = now;
+      state.confidence = Math.min(conf + 10, 100);
+      return;
+    }
+
+    // Check if candidate has been stable long enough
+    if (now - _candidateStartTime < _confirmationDelay) {
+      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 3);
+      return;
+    }
+
+    // If confidence is too low, don't switch
+    if (conf < 40) {
+      state.confidence = Math.min(100, (state.confidence + conf) / 2);
+      return;
+    }
+
+    // ACTIVITY CHANGE - confirmed
+    const oldAct = state.currentActivity;
+    state.currentActivity = newAct;
+    state.confidence = Math.min(conf + 10, 100);
+    state.confidence = clamp(state.confidence, 10, 100);
+    state._lastActivityChange = now;
+
+    state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
+    if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
+
+    addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence.`);
+    triggerAutomation(newAct);
+    renderTransitionChart();
+    renderDurationDisplay();
+    detectPatterns();
+
+    // End previous session
+    if (state._currentSession) {
+      state._currentSession.endTime = Date.now();
+      state._currentSession.duration = state._currentSession.endTime - state._currentSession.startTime;
+      state._currentSession.steps = state.steps - state._currentSession.startSteps;
+      state._currentSession.distance = state._totalDistance - state._currentSession.startDistance;
+      if (state._currentSession.steps >= CONFIG.MIN_STEPS_PER_SESSION || state._currentSession.duration > 5000) {
+        state._sessions.push(state._currentSession);
+        if (!state.dnr) {
+          StorageEngine.add('sessions', state._currentSession).catch(() => {});
+        }
+      }
+      state._currentSession = null;
+    }
+
+    // Start new session
+    state._currentSession = {
+      id: Date.now(),
+      startTime: Date.now(),
+      activity: newAct,
+      startSteps: state.steps,
+      endSteps: state.steps,
+      steps: 0,
+      startDistance: state._totalDistance,
+      endDistance: state._totalDistance,
+      distance: 0,
+      duration: 0,
+      maxSpeed: 0,
+      avgSpeed: 0,
+      confidence: state.confidence,
+      events: []
+    };
+    state._sessionStartSteps = state.steps;
+    state._sessionStartDistance = state._totalDistance;
+
+    VibrationEngine.activityChanged();
+    if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
+      NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
+    }
+
+    // Reset candidate
+    _candidateActivity = null;
+    _candidateStartTime = 0;
+
+    renderDailySummary();
+    renderDurationDisplay();
+
+    const sessionCount = $('sessionCountDisplay');
+    if (sessionCount) sessionCount.textContent = state._sessions.length;
+  }
 
   // ============================================================
   // PROCESSING ENGINE
@@ -1621,265 +1964,6 @@
   }
 
   // ============================================================
-  // STEP DETECTION
-  // ============================================================
-  let _stepBuffer = [];
-  let _stepBaseline = 1.0;
-  let _stepThreshold = 0.15;
-  let _lastStepTime = 0;
-  let _stepConfidence = 0;
-  let _cadence = 0;
-
-  function detectStep(mag, timestamp) {
-    if (state.dnr) return null;
-
-    _stepBuffer.push(mag);
-    if (_stepBuffer.length > 100) _stepBuffer.shift();
-
-    if (_stepBuffer.length > 20) {
-      const sorted = [..._stepBuffer].sort((a, b) => a - b);
-      _stepBaseline = sorted[Math.floor(sorted.length / 2)];
-      const noise = _stepBuffer.reduce((s, v) => s + Math.pow(v - _stepBaseline, 2), 0) / _stepBuffer.length;
-      _stepThreshold = Math.max(0.06, Math.min(0.25, Math.sqrt(noise) * 3));
-    }
-
-    const deviation = Math.abs(mag - _stepBaseline);
-    const history = _stepBuffer;
-    if (history.length < 3) return null;
-
-    const idx = history.length - 1;
-    const isValley = mag < history[idx - 1] && mag < history[idx - 2];
-    const isPeak = mag > history[idx - 1] && mag > history[idx - 2];
-
-    let prominence = 0;
-    if (isPeak || isValley) {
-      const neighbors = history.slice(-6);
-      const meanNeighbor = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
-      prominence = Math.abs(mag - meanNeighbor);
-    }
-
-    if ((isValley || isPeak) && deviation > _stepThreshold && prominence > _stepThreshold * 0.7) {
-      const timeSinceLast = timestamp - _lastStepTime;
-      const isFirstStep = _lastStepTime === 0;
-      if (isFirstStep || (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
-        timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX)) {
-        _lastStepTime = timestamp;
-        _stepConfidence = Math.min(95, _stepConfidence + 2);
-        const cadence = isFirstStep ? _cadence : Math.round(60 / (timeSinceLast / 1000));
-        _cadence = cadence;
-
-        state._stepTimes.push(timestamp);
-        if (state._stepTimes.length > 100) state._stepTimes.shift();
-
-        return { step: true, cadence: cadence, confidence: _stepConfidence };
-      }
-    }
-
-    _stepConfidence = Math.max(0, _stepConfidence - 0.5);
-    return null;
-  }
-
-  // ============================================================
-  // ACTIVITY CLASSIFICATION
-  // ============================================================
-  function classifyActivity(magHistory, gyroHistory, gpsData) {
-    if (magHistory.length < 5) return { key: state.currentActivity || 'Stationary', confidence: 50 };
-
-    const filtered = magHistory.slice(-40);
-    if (filtered.length < 3) return { key: state.currentActivity || 'Stationary', confidence: 50 };
-
-    const features = {
-      variance: 0,
-      peak: 0,
-      jerk: 0,
-      stepFrequency: 0,
-      gyroVariance: 0,
-      speed: gpsData.speed || 0,
-      magMean: 0
-    };
-
-    features.magMean = filtered.reduce((a, b) => a + b, 0) / filtered.length;
-    features.variance = filtered.reduce((s, v) => s + Math.pow(v - features.magMean, 2), 0) / filtered.length;
-    features.peak = Math.max(...filtered.map(v => Math.abs(v - 1)));
-
-    let jerkSum = 0;
-    for (let i = 1; i < filtered.length; i++) {
-      jerkSum += Math.abs(filtered[i] - filtered[i - 1]);
-    }
-    features.jerk = jerkSum / filtered.length;
-
-    const stepTimes = state._stepTimes || [];
-    if (stepTimes.length > 1) {
-      const recentSteps = stepTimes.filter(t => Date.now() - t < 10000);
-      if (recentSteps.length > 1) {
-        features.stepFrequency = (recentSteps.length / 10) * 60;
-      }
-    }
-
-    if (gyroHistory && gyroHistory.length > 5) {
-      const gyroMag = gyroHistory.map(g => Math.abs(g.a) + Math.abs(g.b) + Math.abs(g.c));
-      const gyroMean = gyroMag.reduce((a, b) => a + b, 0) / gyroMag.length;
-      features.gyroVariance = gyroMag.reduce((s, v) => s + Math.pow(v - gyroMean, 2), 0) / gyroMag.length;
-    }
-
-    const scores = {
-      Stationary: 0.04,
-      Walking: 0.04,
-      Running: 0.04,
-      Cycling: 0.04,
-      Vehicle: 0.04,
-      'Public Transport': 0.02
-    };
-
-    if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
-      scores.Stationary += 0.7;
-    }
-    if (features.gyroVariance < 2) scores.Stationary += 0.15;
-
-    if (features.variance > 0.005 && features.variance < 0.4 &&
-      features.stepFrequency >= 40 && features.stepFrequency <= 135) {
-      scores.Walking += 0.55;
-      if (features.stepFrequency > 60) scores.Walking += 0.15;
-      scores.Walking += 0.25;
-    }
-    if (features.speed !== null && features.speed > 1.5 && features.speed < 8) scores.Walking += 0.25;
-    if (features.gyroVariance > 2 && features.gyroVariance < 20) scores.Walking += 0.05;
-
-    if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150) {
-      scores.Running += 0.6;
-    }
-    if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
-
-    if (features.speed !== null && features.speed > 10 && features.speed <= 28 && features.stepFrequency < 20) scores.Cycling += 0.55;
-    if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) scores.Cycling += 0.15;
-
-    if (features.speed !== null && features.speed > 28 && features.stepFrequency < 20) {
-      scores.Vehicle += Math.min(0.75, features.speed / 70);
-    }
-    if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
-
-    if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
-      features.peak > 0.5 && features.stepFrequency < 8) {
-      scores['Public Transport'] += 0.12;
-    }
-
-    const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
-    Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
-
-    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-    const winner = sorted[0];
-    const runnerUp = sorted[1] || ['', 0];
-
-    const separation = winner[1] - runnerUp[1];
-    const confidence = Math.min(98, Math.max(30, (winner[1] * 100 + 10) + separation * 20));
-
-    return {
-      key: winner[0],
-      confidence: clamp(confidence, 30, 98),
-      scores: scores,
-      separation: separation,
-      quality: confidence > 80 ? 'High' : confidence > 60 ? 'Medium' : 'Low'
-    };
-  }
-
-  // ============================================================
-  // ACTIVITY SETTER
-  // ============================================================
-  let _confirmedActivity = 'Stationary';
-  let _candidateActivity = null;
-  let _candidateStartTime = 0;
-  let _confirmationDelay = CONFIG.CONFIRMATION_DELAY;
-
-  function setActivity(newAct, conf) {
-    if (state.dnr) return;
-
-    const now = Date.now();
-    const elapsed = (now - state.activityStartTime) / 1000;
-    if (elapsed > 0.5) {
-      state.activityDurations[state.currentActivity] = (state.activityDurations[state.currentActivity] || 0) + elapsed;
-    }
-    state.activityStartTime = now;
-
-    if (state.currentActivity === newAct) {
-      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 5);
-    } else {
-      state.confidence = Math.min(conf + 10, 100);
-    }
-    state.confidence = clamp(state.confidence, 10, 100);
-
-    state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
-    if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
-
-    const oldAct = state.currentActivity;
-
-    if (state.currentActivity !== newAct) {
-      state.currentActivity = newAct;
-      addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence.`);
-      triggerAutomation(newAct);
-      renderTransitionChart();
-      renderDurationDisplay();
-      detectPatterns();
-
-      // End previous session and start new one
-      if (state._currentSession) {
-        state._currentSession.endTime = Date.now();
-        state._currentSession.duration = state._currentSession.endTime - state._currentSession.startTime;
-        state._currentSession.steps = state.steps - state._currentSession.startSteps;
-        state._currentSession.distance = state._totalDistance - state._currentSession.startDistance;
-        if (state._currentSession.steps >= CONFIG.MIN_STEPS_PER_SESSION || state._currentSession.duration > 5000) {
-          state._sessions.push(state._currentSession);
-          if (!state.dnr) {
-            StorageEngine.add('sessions', state._currentSession).catch(() => {});
-          }
-        }
-        state._currentSession = null;
-      }
-
-      // Start new session
-      state._currentSession = {
-        id: Date.now(),
-        startTime: Date.now(),
-        activity: newAct,
-        startSteps: state.steps,
-        endSteps: state.steps,
-        steps: 0,
-        startDistance: state._totalDistance,
-        endDistance: state._totalDistance,
-        distance: 0,
-        duration: 0,
-        maxSpeed: 0,
-        avgSpeed: 0,
-        confidence: state.confidence,
-        events: []
-      };
-      state._sessionStartSteps = state.steps;
-      state._sessionStartDistance = state._totalDistance;
-
-      VibrationEngine.activityChanged();
-      if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
-        NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
-      }
-    }
-
-    if (state._currentSession) {
-      state._currentSession.confidence = state.confidence;
-      state._currentSession.duration = Date.now() - state._currentSession.startTime;
-      state._currentSession.maxSpeed = Math.max(state._currentSession.maxSpeed, state.speed || 0);
-      if (state.speed) {
-        const count = (state._currentSession._speedCount || 0) + 1;
-        state._currentSession.avgSpeed = ((state._currentSession.avgSpeed || 0) * (count - 1) + state.speed) / count;
-        state._currentSession._speedCount = count;
-      }
-    }
-
-    renderDailySummary();
-    renderDurationDisplay();
-
-    const sessionCount = $('sessionCountDisplay');
-    if (sessionCount) sessionCount.textContent = state._sessions.length;
-  }
-
-  // ============================================================
   // TIMELINE FUNCTIONS
   // ============================================================
   function addTimelineEvent(label, detail) {
@@ -1934,7 +2018,6 @@
           </div>
         `;
 
-        // Attach event listeners
         const createBtn = suggestionArea.querySelector('[data-pattern-act]');
         if (createBtn) {
           createBtn.addEventListener('click', function() {
@@ -2291,7 +2374,8 @@
       <div><span>Device Tilt:</span><span>X:${Math.round(state.orientation.beta)}° Y:${Math.round(state.orientation.gamma)}°</span></div>
       <div><span>Sampling Mode:</span><span>${state.isSim ? 'Simulated' : 'Real Hardware'}</span></div>
       <div><span>Sensor Health:</span><span>Accel ${state.sensorHealth.accel.stale ? '⚠️' : '✅'} Gyro ${state.sensorHealth.gyro.stale ? '⚠️' : '✅'}</span></div>
-      <div><span>Step Cadence:</span><span>${_cadence} spm</span></div>
+      <div><span>Step Cadence:</span><span>${state._cadence} spm</span></div>
+      <div><span>Recent Steps:</span><span>${state._stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW).length}</span></div>
     `;
 
     // Phone Status
@@ -2406,12 +2490,13 @@
         confidence: Math.round(state.confidence),
         accel: { x: fmt(state.accel.x, 2), y: fmt(state.accel.y, 2), z: fmt(state.accel.z, 2), mag: fmt(state.accel.mag, 2) },
         variance: getVariance(state.accel.history.slice(-20)).toFixed(4),
-        cadence: _cadence,
+        cadence: state._cadence,
         speed: state.speed,
         steps: state.steps,
         distance: (getTotalDistance() / 1000).toFixed(2),
         sessions: state._sessions.length,
         stepTimes: state._stepTimes.length,
+        recentSteps: state._stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW).length,
         calibrated: state._calibrated,
         storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb',
         locationEnabled: state._locationEnabled,
@@ -2570,19 +2655,16 @@
     try {
       const weekData = { dailyTotals: {} };
       let totalSteps = 0;
-      const today = new Date();
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         d.setHours(0, 0, 0, 0);
         const key = d.toDateString();
         const isToday = i === 0;
-        // For today, use current steps; for past days, try to estimate from sessions
         let steps = 0;
         if (isToday) {
           steps = state.steps;
         } else {
-          // Estimate from sessions that started on this day
           const dayStart = d.getTime();
           const dayEnd = dayStart + 86400000;
           for (const session of state._sessions) {
@@ -2665,7 +2747,6 @@
     const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
     state._calibrated = true;
     state._calibrationBaseline = { gravity, noiseFloor: noise, offset: { x: mean.x, y: mean.y, z: mean.z } };
-    // Update thresholds
     CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 80);
     CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 120);
     showToast('Calibration complete!');
@@ -2814,7 +2895,6 @@
     updateGoalProgress();
     updateSoundUI();
 
-    // Load calibration from IndexedDB
     StorageEngine.getAll('preferences').then(prefs => {
       const cal = prefs.find(p => p.id === 'calibration');
       if (cal && cal.calibrated) {
@@ -2954,7 +3034,7 @@
     } else if (q.includes('battery')) {
       ans.textContent = `Battery: ${state.battery.level}% ${state.battery.charging ? '(charging)' : '(not charging)'}`;
     } else if (q.includes('step') || q.includes('walk')) {
-      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${_cadence} spm.`;
+      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${state._cadence} spm. Recent steps: ${state._stepTimes.filter(t => Date.now() - t < CONFIG.STEP_DETECTION_WINDOW).length}`;
     } else if (q.includes('duration') || q.includes('time')) {
       const durations = Object.entries(state.activityDurations)
         .filter(([, v]) => v > 0)
@@ -2972,7 +3052,7 @@
     } else if (q.includes('far') || q.includes('distance')) {
       ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(getActivityDistance('Walking') / 1000).toFixed(1)} km, Running: ${(getActivityDistance('Running') / 1000).toFixed(1)} km, Vehicle: ${(getActivityDistance('Vehicle') / 1000).toFixed(1)} km.`;
     } else if (q.includes('cadence')) {
-      ans.textContent = `Your current step cadence is ${_cadence} steps per minute.`;
+      ans.textContent = `Your current step cadence is ${state._cadence} steps per minute.`;
     } else {
       ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km.`;
     }
@@ -3129,6 +3209,9 @@
     state._sessions = [];
     state._totalDistance = 0;
     state._activityDistances = {};
+    state._stepTimes = [];
+    state._stepBuffer = [];
+    state._cadence = 0;
     _lastPosition = null;
     SoundEngine._lastStepSound = 0;
     renderTimeline();
@@ -3538,26 +3621,13 @@
   updateSoundUI();
   renderWeeklyStepsChart();
 
-  console.log('SensorMind v3.3 - Security & Reliability Hardening (Fixed)');
-  console.log('✅ XSS Protection - All user content rendered safely');
-  console.log('✅ Split Permissions (Motion, Location, Notifications)');
-  console.log('✅ Do Not Record properly stops processing');
-  console.log('✅ Fall detection with multi-signal verification');
-  console.log('✅ Clear History clears persistent storage');
-  console.log('✅ Places use stable IDs with put()');
-  console.log('✅ UI rendering throttled (500ms update cycle)');
-  console.log('✅ Calibration stored in IndexedDB');
-  console.log('✅ Service Worker registered for PWA');
-  console.log('✅ Accessibility improvements');
-  console.log('✅ Sensor Lab max duration & cancel');
-  console.log('✅ Gesture recording cancellation');
-  console.log('✅ Global error handling');
-  console.log('✅ Duplicate import detection');
-  console.log('✅ Import validation & normalization');
-  console.log('✅ Activity detection improved with stepFrequency check');
-  console.log('✅ Session management fixes');
-  console.log('✅ Distance tracking reset on clear history');
-  console.log('✅ Live dot updates with DNR');
+  console.log('SensorMind v3.3 - Walking Detection Fixed!');
+  console.log('✅ Walking detection improved - no more false cycling');
+  console.log('✅ Step frequency detection uses recent steps window');
+  console.log('✅ Higher base score for walking (0.15 vs 0.04)');
+  console.log('✅ Confirmation delay prevents rapid switching');
+  console.log('✅ Recent steps count displayed in debug');
+  console.log('✅ Cycling requires stepFrequency < 20 AND recentSteps < 2');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
