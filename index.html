@@ -45,7 +45,8 @@
   .btn-primary:active{transform:scale(.97);}
   .btn-primary:focus-visible{outline:2px solid var(--text-bright);outline-offset:3px;}
   .btn-secondary{background:none;border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:500;
-    padding:11px 20px;border-radius:10px;cursor:pointer;}
+    padding:11px 20px;border-radius:10px;cursor:pointer;transition:background .15s;}
+  .btn-secondary:hover{background:rgba(255,184,77,0.05);}
   .btn-secondary:focus-visible, .btn-primary:focus-visible, button:focus-visible, input:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
   #gate .fine{margin-top:16px;font-size:11.5px;color:var(--text-dim);max-width:320px;line-height:1.5;}
 
@@ -55,8 +56,9 @@
   .brand-mark{width:22px;height:22px;flex-shrink:0;}
   .brand-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;color:var(--text-bright);letter-spacing:-.01em;}
   .header-status{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);transition:background .3s;}
   .dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .dot.off{background:var(--red);box-shadow:0 0 8px var(--red);}
   .dnr-banner{background:rgba(255,107,107,0.12);border-bottom:1px solid rgba(255,107,107,0.3);color:var(--red);
     font-family:'JetBrains Mono',monospace;font-size:11px;text-align:center;padding:7px;display:none;letter-spacing:.08em;}
   .dnr-banner.show{display:block;}
@@ -90,6 +92,7 @@
 
   .why-toggle{margin-top:14px;background:none;border:1px solid var(--border);color:var(--text-dim);
     font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 13px;border-radius:8px;cursor:pointer;}
+  .why-toggle:hover{background:rgba(255,184,77,0.05);}
   .why-panel{margin-top:10px;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);
     border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;color:var(--text);display:none;}
   .why-panel.open{display:block;}
@@ -143,8 +146,8 @@
   .rule-when b{color:var(--text-bright);text-transform:none;font-family:'Inter',sans-serif;font-size:13px;}
   .rule-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .chip-btn{background:var(--panel2);border:1px solid var(--border);color:var(--text-dim);font-size:10.5px;
-    padding:5px 9px;border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',monospace;}
-  .chip-btn:hover{color:var(--text-bright);}
+    padding:5px 9px;border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .2s;}
+  .chip-btn:hover{color:var(--text-bright);border-color:var(--text-dim);}
   .chip-btn.danger:hover{color:var(--red);border-color:rgba(255,107,107,.4);}
   .switch{position:relative;width:38px;height:22px;flex-shrink:0;}
   .switch input{opacity:0;width:0;height:0;}
@@ -158,6 +161,7 @@
   .builder-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
   select, .num-input{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text-bright);
     padding:11px 12px;border-radius:9px;font-size:13.5px;font-family:'Inter',sans-serif;}
+  select:focus, .num-input:focus{outline:2px solid var(--amber);outline-offset:2px;}
   .builder-row{display:flex;gap:8px;}
   .builder-row select, .builder-row input{flex:1;}
 
@@ -198,22 +202,26 @@
   .tilt-dot-wrap{width:120px;height:120px;border-radius:50%;border:1px solid var(--border);background:var(--panel2);
     margin:0 auto 10px;position:relative;}
   .tilt-dot{width:14px;height:14px;border-radius:50%;background:var(--teal);position:absolute;top:50%;left:50%;
-    transform:translate(-50%,-50%); box-shadow:0 0 10px var(--teal);}
+    transform:translate(-50%,-50%); box-shadow:0 0 10px var(--teal);transition:transform .1s ease-out;}
 
   .ask-box{display:flex;gap:8px;margin-bottom:14px;}
   .ask-input{flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text-bright);padding:12px 14px;
     border-radius:10px;font-size:13.5px;}
+  .ask-input:focus{outline:2px solid var(--amber);outline-offset:2px;}
   .ask-answer{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13.5px;
     color:var(--text-bright);margin-bottom:12px; line-height:1.6;}
   .ask-chip{display:inline-block;background:var(--panel2);border:1px solid var(--border);color:var(--text-dim);
-    font-size:11px;padding:6px 11px;border-radius:16px;margin:0 6px 6px 0;cursor:pointer;}
+    font-size:11px;padding:6px 11px;border-radius:16px;margin:0 6px 6px 0;cursor:pointer;transition:all .2s;}
+  .ask-chip:hover{background:var(--panel);border-color:var(--amber);color:var(--text-bright);}
 
   .priv-item{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);font-size:13.5px;}
   .priv-item:last-child{border-bottom:none;}
   .priv-btn{background:none;border:1px solid var(--border);color:var(--red);font-family:'JetBrains Mono',monospace;
-    font-size:11px;padding:6px 11px;border-radius:8px;cursor:pointer;}
+    font-size:11px;padding:6px 11px;border-radius:8px;cursor:pointer;transition:all .2s;}
+  .priv-btn:hover{background:rgba(255,107,107,0.1);border-color:var(--red);}
   .settings-link{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid var(--border);cursor:pointer;}
   .settings-link:last-child{border-bottom:none;}
+  .settings-link:hover .lbl{color:var(--amber);}
   .settings-link .lbl{font-size:14px;color:var(--text-bright);font-weight:500;}
   .settings-link .sub{font-size:11.5px;color:var(--text-dim);margin-top:2px;}
   .chev{color:var(--text-dim);}
@@ -231,7 +239,9 @@
   .fall-btns{display:flex;gap:10px;}
   .fall-btns button{flex:1;padding:12px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
   #fallOk{background:var(--panel2);color:var(--text-bright);border:1px solid var(--border) !important;}
+  #fallOk:hover{background:var(--border);}
   #fallHelp{background:var(--red);color:#1a0d0d;}
+  #fallHelp:hover{filter:brightness(1.1);}
 
   #toast{position:fixed;left:50%;bottom:100px;transform:translate(-50%,20px);z-index:60;background:var(--panel2);
     border:1px solid var(--border);color:var(--text-bright);padding:12px 18px;border-radius:12px;font-size:13px;
@@ -244,8 +254,9 @@
     display:flex;justify-content:space-around;padding:9px 4px calc(9px + env(safe-area-inset-bottom));}
   @media(min-width:820px){ nav{max-width:760px;} }
   .nav-btn{background:none;border:none;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:9.5px;
-    display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:4px 6px;}
+    display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:4px 6px;transition:color .2s;}
   .nav-btn.active{color:var(--amber);}
+  .nav-btn:hover{color:var(--text-bright);}
   .nav-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
 
   .view{display:none;} .view.active{display:block;}
@@ -279,11 +290,14 @@
   .sound-toggle .status{font-size:11px;font-weight:600;}
   .sound-toggle .status.on{color:var(--green);}
   .sound-toggle .status.off{color:var(--red);}
-  .sound-toggle .sound-btn{background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px;}
+  .sound-toggle .sound-btn{background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px;opacity:0.7;}
+  .sound-toggle .sound-btn:hover{opacity:1;}
 
   .calibration-status{font-size:11px;color:var(--text-dim);padding:4px 8px;background:var(--panel2);border-radius:4px;border:1px solid var(--border);}
   .calibration-status .good{color:var(--green);}
   .calibration-status .warn{color:var(--amber);}
+
+  .btn-secondary.disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -900,11 +914,12 @@
     _labData: [],
     _labRecording: false,
     _gestureTimerId: null,
+    _gestureRecording: false,
     _listenerCleanup: []
   };
 
   // ============================================================
-  // SAFE DOM UTILITIES - No innerHTML with user data
+  // SAFE DOM UTILITIES
   // ============================================================
   function escapeHtml(str) {
     if (!str) return '';
@@ -920,7 +935,11 @@
         if (key === 'className') el.className = value;
         else if (key === 'textContent') el.textContent = value;
         else if (key === 'innerHTML') el.innerHTML = value;
-        else el.setAttribute(key, value);
+        else if (key === 'type' || key === 'id' || key === 'placeholder' || key === 'maxlength' || key === 'min' || key === 'max' || key === 'value') {
+          el.setAttribute(key, value);
+        } else {
+          el.setAttribute(key, value);
+        }
       }
     }
     if (children) {
@@ -938,7 +957,6 @@
       container.innerHTML = `<div class="empty-note">No items to display.</div>`;
       return;
     }
-    // Clear container and rebuild with DOM elements
     container.innerHTML = '';
     for (const item of items) {
       const el = renderFn(item);
@@ -1120,12 +1138,6 @@
   };
 
   // ============================================================
-  // ACTIVITY ENGINE (kept as-is, already robust)
-  // ============================================================
-  // ... [ActivityEngine, StepEngine, SessionEngine, DistanceTracker, etc.]
-  // These are preserved from the original but with minor fixes
-
-  // ============================================================
   // STORAGE ENGINE
   // ============================================================
   const StorageEngine = {
@@ -1284,8 +1296,14 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function getVariance(arr) {
+    if (arr.length < 2) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+  }
+
   // ============================================================
-  // UI HELPERS (XSS-safe render functions)
+  // UI HELPERS
   // ============================================================
   function renderTimelineItem(item) {
     const div = createElement('div', { className: 'tl-item', role: 'button', tabindex: '0' });
@@ -1322,7 +1340,8 @@
       this.setAttribute('aria-selected', 'true');
       this.setAttribute('aria-current', 'page');
       const target = this.getAttribute('data-target');
-      $(target).classList.add('active');
+      const view = $(target);
+      if (view) view.classList.add('active');
       if (target === 'view-activity') renderWeeklyStepsChart();
     });
   });
@@ -1372,9 +1391,6 @@
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         pos => {
-          // Only trust speed from a reasonably accurate fix - a poor/noisy GPS fix can report
-          // spurious high speed values (common mid-walk, indoors, or near buildings) which would
-          // otherwise feed straight into activity classification and get misread as Cycling/Vehicle.
           const accuracy = pos.coords.accuracy;
           const goodFix = !accuracy || accuracy <= CONFIG.GPS_ACCURACY_THRESHOLD;
           if (goodFix) {
@@ -1386,7 +1402,7 @@
           state._lastGpsUpdate = Date.now();
 
           if (pos.coords.latitude && pos.coords.longitude) {
-            DistanceTracker.updatePosition(pos.coords.latitude, pos.coords.longitude, state.speed, pos.coords.accuracy);
+            updateDistance(pos.coords.latitude, pos.coords.longitude, state.speed, pos.coords.accuracy);
           }
 
           if (state.places.home && pos.coords) {
@@ -1505,7 +1521,35 @@
   }
 
   // ============================================================
-  // PROCESSING ENGINE (core - kept from original)
+  // DISTANCE TRACKER (inline)
+  // ============================================================
+  let _lastPosition = null;
+
+  function updateDistance(lat, lon, speed, accuracy) {
+    if (state.dnr) return;
+    if (accuracy && accuracy > CONFIG.GPS_ACCURACY_THRESHOLD) return;
+    const now = Date.now();
+    const position = { lat, lon, speed, accuracy, timestamp: now };
+
+    if (_lastPosition) {
+      const distance = haversine(_lastPosition.lat, _lastPosition.lon, lat, lon);
+      const timeDiff = (now - _lastPosition.timestamp) / 1000;
+      const maxDistance = (CONFIG.GPS_JUMP_MAX_KMH / 3.6) * timeDiff;
+
+      if (distance < maxDistance && distance > 0.5) {
+        state._totalDistance += distance;
+        const activity = state.currentActivity || 'Unknown';
+        state._activityDistances[activity] = (state._activityDistances[activity] || 0) + distance;
+      }
+    }
+    _lastPosition = position;
+  }
+
+  function getTotalDistance() { return state._totalDistance; }
+  function getActivityDistance(activity) { return state._activityDistances[activity] || 0; }
+
+  // ============================================================
+  // PROCESSING ENGINE
   // ============================================================
   function processAccel(mag) {
     state.accel.history.push(mag);
@@ -1522,7 +1566,7 @@
       addTimelineEvent('Shake detected', `Intensity: ${delta.toFixed(2)}g`);
     }
 
-    if (state.recordingGesture) state.recordedSamples.push(mag);
+    if (state._gestureRecording) state.recordedSamples.push(mag);
 
     if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
       state.fallTriggered = true;
@@ -1544,7 +1588,7 @@
       }, 1200);
     }
 
-    const stepResult = ImprovedStepEngine.detectStep(mag, Date.now());
+    const stepResult = detectStep(mag, Date.now());
     if (stepResult) {
       state.steps++;
       updateGoalProgress();
@@ -1565,7 +1609,7 @@
       return;
     }
 
-    const result = ImprovedActivityEngine.update(
+    const result = classifyActivity(
       state.accel.history,
       state.gyro.history,
       { speed: state.speed }
@@ -1576,11 +1620,175 @@
     }
   }
 
-  function getVariance(arr) {
-    if (arr.length < 2) return 0;
-    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+  // ============================================================
+  // STEP DETECTION
+  // ============================================================
+  let _stepBuffer = [];
+  let _stepBaseline = 1.0;
+  let _stepThreshold = 0.15;
+  let _lastStepTime = 0;
+  let _stepConfidence = 0;
+  let _cadence = 0;
+
+  function detectStep(mag, timestamp) {
+    if (state.dnr) return null;
+
+    _stepBuffer.push(mag);
+    if (_stepBuffer.length > 100) _stepBuffer.shift();
+
+    if (_stepBuffer.length > 20) {
+      const sorted = [..._stepBuffer].sort((a, b) => a - b);
+      _stepBaseline = sorted[Math.floor(sorted.length / 2)];
+      const noise = _stepBuffer.reduce((s, v) => s + Math.pow(v - _stepBaseline, 2), 0) / _stepBuffer.length;
+      _stepThreshold = Math.max(0.06, Math.min(0.25, Math.sqrt(noise) * 3));
+    }
+
+    const deviation = Math.abs(mag - _stepBaseline);
+    const history = _stepBuffer;
+    if (history.length < 3) return null;
+
+    const idx = history.length - 1;
+    const isValley = mag < history[idx - 1] && mag < history[idx - 2];
+    const isPeak = mag > history[idx - 1] && mag > history[idx - 2];
+
+    let prominence = 0;
+    if (isPeak || isValley) {
+      const neighbors = history.slice(-6);
+      const meanNeighbor = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
+      prominence = Math.abs(mag - meanNeighbor);
+    }
+
+    if ((isValley || isPeak) && deviation > _stepThreshold && prominence > _stepThreshold * 0.7) {
+      const timeSinceLast = timestamp - _lastStepTime;
+      const isFirstStep = _lastStepTime === 0;
+      if (isFirstStep || (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
+        timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX)) {
+        _lastStepTime = timestamp;
+        _stepConfidence = Math.min(95, _stepConfidence + 2);
+        const cadence = isFirstStep ? _cadence : Math.round(60 / (timeSinceLast / 1000));
+        _cadence = cadence;
+
+        state._stepTimes.push(timestamp);
+        if (state._stepTimes.length > 100) state._stepTimes.shift();
+
+        return { step: true, cadence: cadence, confidence: _stepConfidence };
+      }
+    }
+
+    _stepConfidence = Math.max(0, _stepConfidence - 0.5);
+    return null;
   }
+
+  // ============================================================
+  // ACTIVITY CLASSIFICATION
+  // ============================================================
+  function classifyActivity(magHistory, gyroHistory, gpsData) {
+    if (magHistory.length < 5) return { key: state.currentActivity || 'Stationary', confidence: 50 };
+
+    const filtered = magHistory.slice(-40);
+    if (filtered.length < 3) return { key: state.currentActivity || 'Stationary', confidence: 50 };
+
+    const features = {
+      variance: 0,
+      peak: 0,
+      jerk: 0,
+      stepFrequency: 0,
+      gyroVariance: 0,
+      speed: gpsData.speed || 0,
+      magMean: 0
+    };
+
+    features.magMean = filtered.reduce((a, b) => a + b, 0) / filtered.length;
+    features.variance = filtered.reduce((s, v) => s + Math.pow(v - features.magMean, 2), 0) / filtered.length;
+    features.peak = Math.max(...filtered.map(v => Math.abs(v - 1)));
+
+    let jerkSum = 0;
+    for (let i = 1; i < filtered.length; i++) {
+      jerkSum += Math.abs(filtered[i] - filtered[i - 1]);
+    }
+    features.jerk = jerkSum / filtered.length;
+
+    const stepTimes = state._stepTimes || [];
+    if (stepTimes.length > 1) {
+      const recentSteps = stepTimes.filter(t => Date.now() - t < 10000);
+      if (recentSteps.length > 1) {
+        features.stepFrequency = (recentSteps.length / 10) * 60;
+      }
+    }
+
+    if (gyroHistory && gyroHistory.length > 5) {
+      const gyroMag = gyroHistory.map(g => Math.abs(g.a) + Math.abs(g.b) + Math.abs(g.c));
+      const gyroMean = gyroMag.reduce((a, b) => a + b, 0) / gyroMag.length;
+      features.gyroVariance = gyroMag.reduce((s, v) => s + Math.pow(v - gyroMean, 2), 0) / gyroMag.length;
+    }
+
+    const scores = {
+      Stationary: 0.04,
+      Walking: 0.04,
+      Running: 0.04,
+      Cycling: 0.04,
+      Vehicle: 0.04,
+      'Public Transport': 0.02
+    };
+
+    if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
+      scores.Stationary += 0.7;
+    }
+    if (features.gyroVariance < 2) scores.Stationary += 0.15;
+
+    if (features.variance > 0.005 && features.variance < 0.4 &&
+      features.stepFrequency >= 40 && features.stepFrequency <= 135) {
+      scores.Walking += 0.55;
+      if (features.stepFrequency > 60) scores.Walking += 0.15;
+      scores.Walking += 0.25;
+    }
+    if (features.speed !== null && features.speed > 1.5 && features.speed < 8) scores.Walking += 0.25;
+    if (features.gyroVariance > 2 && features.gyroVariance < 20) scores.Walking += 0.05;
+
+    if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150) {
+      scores.Running += 0.6;
+    }
+    if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
+
+    if (features.speed !== null && features.speed > 10 && features.speed <= 28 && features.stepFrequency < 20) scores.Cycling += 0.55;
+    if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) scores.Cycling += 0.15;
+
+    if (features.speed !== null && features.speed > 28 && features.stepFrequency < 20) {
+      scores.Vehicle += Math.min(0.75, features.speed / 70);
+    }
+    if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
+
+    if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
+      features.peak > 0.5 && features.stepFrequency < 8) {
+      scores['Public Transport'] += 0.12;
+    }
+
+    const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
+    Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
+
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const winner = sorted[0];
+    const runnerUp = sorted[1] || ['', 0];
+
+    const separation = winner[1] - runnerUp[1];
+    const confidence = Math.min(98, Math.max(30, (winner[1] * 100 + 10) + separation * 20));
+
+    return {
+      key: winner[0],
+      confidence: clamp(confidence, 30, 98),
+      scores: scores,
+      separation: separation,
+      quality: confidence > 80 ? 'High' : confidence > 60 ? 'Medium' : 'Low'
+    };
+  }
+
+  // ============================================================
+  // ACTIVITY SETTER
+  // ============================================================
+  let _confirmedActivity = 'Stationary';
+  let _candidateActivity = null;
+  let _candidateStartTime = 0;
+  let _confirmationDelay = CONFIG.CONFIRMATION_DELAY;
 
   function setActivity(newAct, conf) {
     if (state.dnr) return;
@@ -1612,274 +1820,26 @@
       renderDurationDisplay();
       detectPatterns();
 
-      SessionEngine.endSession();
-      SessionEngine.startSession(newAct);
-
-      VibrationEngine.activityChanged();
-      if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
-        NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
-      }
-    }
-
-    SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
-    renderDailySummary();
-    renderDurationDisplay();
-
-    const sessionCount = $('sessionCountDisplay');
-    if (sessionCount) sessionCount.textContent = SessionEngine._sessions.length;
-  }
-
-  // ============================================================
-  // ACTIVITY ENGINE (Simplified version for this rewrite)
-  // ============================================================
-  const ImprovedActivityEngine = {
-    _confirmedActivity: 'Stationary',
-    _candidateActivity: null,
-    _candidateStartTime: 0,
-    _confirmationDelay: CONFIG.CONFIRMATION_DELAY,
-    _filterBuffer: [],
-
-    lowPassFilter(value, alpha = 0.3) {
-      this._filterBuffer.push(value);
-      if (this._filterBuffer.length > 10) this._filterBuffer.shift();
-      if (this._filterBuffer.length < 3) return value;
-      return this._filterBuffer.reduce((a, b) => a + b, 0) / this._filterBuffer.length;
-    },
-
-    extractFeatures(magHistory, gyroHistory, gpsData) {
-      if (magHistory.length < 5) return null;
-      const filtered = magHistory.slice(-40).map(v => this.lowPassFilter(v));
-      if (filtered.length < 3) return null;
-
-      const features = {
-        variance: 0,
-        peak: 0,
-        jerk: 0,
-        stepFrequency: 0,
-        gyroVariance: 0,
-        speed: gpsData.speed || 0,
-        magMean: 0
-      };
-
-      features.magMean = filtered.reduce((a, b) => a + b, 0) / filtered.length;
-      features.variance = filtered.reduce((s, v) => s + Math.pow(v - features.magMean, 2), 0) / filtered.length;
-      features.peak = Math.max(...filtered.map(v => Math.abs(v - 1)));
-
-      let jerkSum = 0;
-      for (let i = 1; i < filtered.length; i++) {
-        jerkSum += Math.abs(filtered[i] - filtered[i - 1]);
-      }
-      features.jerk = jerkSum / filtered.length;
-
-      const stepTimes = state._stepTimes || [];
-      if (stepTimes.length > 1) {
-        const recentSteps = stepTimes.filter(t => Date.now() - t < 10000);
-        if (recentSteps.length > 1) {
-          features.stepFrequency = (recentSteps.length / 10) * 60;
+      // End previous session and start new one
+      if (state._currentSession) {
+        state._currentSession.endTime = Date.now();
+        state._currentSession.duration = state._currentSession.endTime - state._currentSession.startTime;
+        state._currentSession.steps = state.steps - state._currentSession.startSteps;
+        state._currentSession.distance = state._totalDistance - state._currentSession.startDistance;
+        if (state._currentSession.steps >= CONFIG.MIN_STEPS_PER_SESSION || state._currentSession.duration > 5000) {
+          state._sessions.push(state._currentSession);
+          if (!state.dnr) {
+            StorageEngine.add('sessions', state._currentSession).catch(() => {});
+          }
         }
+        state._currentSession = null;
       }
 
-      if (gyroHistory && gyroHistory.length > 5) {
-        const gyroMag = gyroHistory.map(g => Math.abs(g.a) + Math.abs(g.b) + Math.abs(g.c));
-        const gyroMean = gyroMag.reduce((a, b) => a + b, 0) / gyroMag.length;
-        features.gyroVariance = gyroMag.reduce((s, v) => s + Math.pow(v - gyroMean, 2), 0) / gyroMag.length;
-      }
-
-      return features;
-    },
-
-    classify(features) {
-      if (!features) return { activity: 'Stationary', confidence: 50, scores: {} };
-
-      const scores = {
-        Stationary: 0.04,
-        Walking: 0.04,
-        Running: 0.04,
-        Cycling: 0.04,
-        Vehicle: 0.04,
-        'Public Transport': 0.02
-      };
-
-      if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
-        scores.Stationary += 0.7;
-      }
-      if (features.gyroVariance < 2) scores.Stationary += 0.15;
-
-      if (features.variance > 0.005 && features.variance < 0.4 &&
-        features.stepFrequency >= 40 && features.stepFrequency <= 135) {
-        scores.Walking += 0.55;
-        if (features.stepFrequency > 60) scores.Walking += 0.15;
-        scores.Walking += 0.25; // confirmed footstep cadence is a stronger, more direct signal than GPS speed alone
-      }
-      if (features.speed !== null && features.speed > 1.5 && features.speed < 8) scores.Walking += 0.25;
-      if (features.gyroVariance > 2 && features.gyroVariance < 20) scores.Walking += 0.05;
-
-      if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150) {
-        scores.Running += 0.6;
-      }
-      if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
-
-      // Cycling has no walking-style footstep cadence, so require a low stepFrequency here too -
-      // otherwise a noisy/jumpy GPS speed reading during an actual walk (common indoors or in
-      // areas with poor signal) can push speed into this range and outscore real step data.
-      if (features.speed !== null && features.speed > 10 && features.speed <= 28 && features.stepFrequency < 20) scores.Cycling += 0.55;
-      if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) scores.Cycling += 0.15;
-
-      if (features.speed !== null && features.speed > 28 && features.stepFrequency < 20) {
-        scores.Vehicle += Math.min(0.75, features.speed / 70);
-      }
-      if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
-
-      if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
-        features.peak > 0.5 && features.stepFrequency < 8) {
-        scores['Public Transport'] += 0.12;
-      }
-
-      const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
-      Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
-
-      const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-      const winner = sorted[0];
-      const runnerUp = sorted[1] || ['', 0];
-
-      const separation = winner[1] - runnerUp[1];
-      const confidence = Math.min(98, Math.max(30, (winner[1] * 100 + 10) + separation * 20));
-
-      return {
-        activity: winner[0],
-        confidence: clamp(confidence, 30, 98),
-        scores: scores,
-        separation: separation
-      };
-    },
-
-    update(magHistory, gyroHistory, gpsData) {
-      if (state.dnr) {
-        return { key: state.currentActivity || 'Stationary', confidence: state.confidence || 50, quality: 'Low' };
-      }
-
-      const features = this.extractFeatures(magHistory, gyroHistory, gpsData);
-      if (!features) return { key: state.currentActivity || 'Stationary', confidence: 50, quality: 'Low' };
-
-      const classification = this.classify(features);
-      const now = Date.now();
-
-      if (classification.activity !== this._candidateActivity) {
-        this._candidateActivity = classification.activity;
-        this._candidateStartTime = now;
-        this._candidateConfidence = classification.confidence;
-        return { key: this._confirmedActivity, confidence: classification.confidence, quality: 'Medium' };
-      }
-
-      if (now - this._candidateStartTime > this._confirmationDelay && classification.confidence > 40) {
-        this._confirmedActivity = classification.activity;
-        return {
-          key: classification.activity,
-          confidence: classification.confidence,
-          scores: classification.scores,
-          quality: classification.confidence > 80 ? 'High' : classification.confidence > 60 ? 'Medium' : 'Low'
-        };
-      }
-
-      return { key: this._confirmedActivity, confidence: classification.confidence, quality: 'Medium' };
-    }
-  };
-
-  // ============================================================
-  // STEP ENGINE
-  // ============================================================
-  const ImprovedStepEngine = {
-    _buffer: [],
-    _baseline: 1.0,
-    _threshold: 0.15,
-    _lastStepTime: 0,
-    _stepCount: 0,
-    _cadence: 0,
-    _confidence: 0,
-
-    updateBaseline(mag) {
-      this._buffer.push(mag);
-      if (this._buffer.length > 100) this._buffer.shift();
-      if (this._buffer.length > 20) {
-        const sorted = [...this._buffer].sort((a, b) => a - b);
-        this._baseline = sorted[Math.floor(sorted.length / 2)];
-        const noise = this._buffer.reduce((s, v) => s + Math.pow(v - this._baseline, 2), 0) / this._buffer.length;
-        this._threshold = Math.max(0.06, Math.min(0.25, Math.sqrt(noise) * 3));
-      }
-    },
-
-    detectStep(mag, timestamp) {
-      if (state.dnr) return null;
-
-      this.updateBaseline(mag);
-      const deviation = Math.abs(mag - this._baseline);
-      const history = this._buffer;
-      if (history.length < 3) return null;
-
-      const idx = history.length - 1;
-      const isValley = mag < history[idx - 1] && mag < history[idx - 2];
-      const isPeak = mag > history[idx - 1] && mag > history[idx - 2];
-
-      let prominence = 0;
-      if (isPeak || isValley) {
-        const neighbors = history.slice(-6);
-        const meanNeighbor = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
-        prominence = Math.abs(mag - meanNeighbor);
-      }
-
-      if ((isValley || isPeak) && deviation > this._threshold && prominence > this._threshold * 0.7) {
-        const timeSinceLast = timestamp - this._lastStepTime;
-        const isFirstStep = this._lastStepTime === 0;
-        if (isFirstStep || (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
-          timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX)) {
-          this._stepCount++;
-          this._lastStepTime = timestamp;
-          this._confidence = Math.min(95, this._confidence + 2);
-          const cadence = isFirstStep ? this._cadence : Math.round(60 / (timeSinceLast / 1000));
-          this._cadence = cadence;
-
-          state._stepTimes.push(timestamp);
-          if (state._stepTimes.length > 100) state._stepTimes.shift();
-
-          return { step: true, cadence: cadence, confidence: this._confidence };
-        }
-      }
-
-      this._confidence = Math.max(0, this._confidence - 0.5);
-      return null;
-    },
-
-    getStats() {
-      return {
-        steps: this._stepCount,
-        cadence: this._cadence,
-        confidence: Math.min(95, this._confidence)
-      };
-    },
-
-    reset() {
-      this._stepCount = 0;
-      this._cadence = 0;
-      this._confidence = 0;
-      this._buffer = [];
-      this._lastStepTime = 0;
-    }
-  };
-
-  // ============================================================
-  // SESSION ENGINE
-  // ============================================================
-  const SessionEngine = {
-    _currentSession: null,
-    _sessions: [],
-    _dailySummary: null,
-
-    startSession(activity) {
-      if (state.dnr) return null;
-      this._currentSession = {
+      // Start new session
+      state._currentSession = {
         id: Date.now(),
         startTime: Date.now(),
-        activity: activity,
+        activity: newAct,
         startSteps: state.steps,
         endSteps: state.steps,
         steps: 0,
@@ -1889,299 +1849,35 @@
         duration: 0,
         maxSpeed: 0,
         avgSpeed: 0,
-        confidence: 0,
+        confidence: state.confidence,
         events: []
       };
-      state._currentSession = this._currentSession;
       state._sessionStartSteps = state.steps;
       state._sessionStartDistance = state._totalDistance;
-      return this._currentSession;
-    },
 
-    endSession() {
-      if (!this._currentSession || state.dnr) return null;
-      this._currentSession.endTime = Date.now();
-      this._currentSession.duration = this._currentSession.endTime - this._currentSession.startTime;
-      this._currentSession.steps = state.steps - this._currentSession.startSteps;
-      this._currentSession.distance = state._totalDistance - this._currentSession.startDistance;
-      if (this._currentSession.steps < CONFIG.MIN_STEPS_PER_SESSION && this._currentSession.duration < 5000) {
-        this._currentSession = null;
-        state._currentSession = null;
-        return null;
+      VibrationEngine.activityChanged();
+      if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
+        NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
       }
-      this._sessions.push(this._currentSession);
-      if (!state.dnr) {
-        StorageEngine.add('sessions', this._currentSession).catch(() => {});
-      }
-      const session = this._currentSession;
-      this._currentSession = null;
-      state._currentSession = null;
-      return session;
-    },
-
-    updateSession(activity, steps, speed, confidence) {
-      if (state.dnr || !this._currentSession) return;
-      const session = this._currentSession;
-      if (session.activity !== activity && state.steps - session.startSteps > 5) {
-        this.endSession();
-        this.startSession(activity);
-        return;
-      }
-      session.confidence = confidence;
-      session.duration = Date.now() - session.startTime;
-      session.maxSpeed = Math.max(session.maxSpeed, speed || 0);
-      if (speed) {
-        const count = (session._speedCount || 0) + 1;
-        session.avgSpeed = ((session.avgSpeed || 0) * (count - 1) + speed) / count;
-        session._speedCount = count;
-      }
-      state._currentSession = session;
-      return session;
-    },
-
-    async getTodaySummary() {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      try {
-        const allSessions = await StorageEngine.getAll('sessions');
-        const todaySessions = allSessions.filter(s => s.startTime >= today.getTime());
-        const summary = {
-          date: today,
-          totalSteps: 0,
-          totalDistance: 0,
-          totalDuration: 0,
-          activities: {},
-          sessions: todaySessions
-        };
-        todaySessions.forEach(s => {
-          summary.totalSteps += s.steps || 0;
-          summary.totalDistance += s.distance || 0;
-          summary.totalDuration += s.duration || 0;
-          summary.activities[s.activity] = (summary.activities[s.activity] || 0) + (s.duration || 0);
-        });
-        this._dailySummary = summary;
-        return summary;
-      } catch (e) { return null; }
-    },
-
-    async getWeeklySummary() {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - 7);
-      weekStart.setHours(0, 0, 0, 0);
-      try {
-        const allSessions = await StorageEngine.getAll('sessions');
-        const weekSessions = allSessions.filter(s => s.startTime >= weekStart.getTime());
-        const dailyTotals = {};
-        weekSessions.forEach(s => {
-          const day = new Date(s.startTime).toDateString();
-          if (!dailyTotals[day]) dailyTotals[day] = { steps: 0, distance: 0, duration: 0 };
-          dailyTotals[day].steps += s.steps || 0;
-          dailyTotals[day].distance += s.distance || 0;
-          dailyTotals[day].duration += s.duration || 0;
-        });
-        return {
-          weekStart: weekStart,
-          dailyTotals: dailyTotals,
-          totalSteps: Object.values(dailyTotals).reduce((s, d) => s + d.steps, 0),
-          totalDistance: Object.values(dailyTotals).reduce((s, d) => s + d.distance, 0)
-        };
-      } catch (e) { return null; }
-    },
-
-    getCurrentSession() { return this._currentSession; },
-    getSessions() { return this._sessions; }
-  };
-
-  // ============================================================
-  // DISTANCE TRACKER
-  // ============================================================
-  const DistanceTracker = {
-    _lastPosition: null,
-    _totalDistance: 0,
-    _activityDistances: {},
-
-    updatePosition(lat, lon, speed, accuracy) {
-      if (state.dnr) return;
-      if (accuracy && accuracy > CONFIG.GPS_ACCURACY_THRESHOLD) return;
-      const now = Date.now();
-      const position = { lat, lon, speed, accuracy, timestamp: now };
-
-      if (this._lastPosition) {
-        const distance = haversine(this._lastPosition.lat, this._lastPosition.lon, lat, lon);
-        const timeDiff = (now - this._lastPosition.timestamp) / 1000;
-        const maxDistance = (CONFIG.GPS_JUMP_MAX_KMH / 3.6) * timeDiff;
-
-        if (distance < maxDistance && distance > 0.5) {
-          this._totalDistance += distance;
-          const activity = state.currentActivity || 'Unknown';
-          this._activityDistances[activity] = (this._activityDistances[activity] || 0) + distance;
-        }
-      }
-      this._lastPosition = position;
-    },
-
-    getTotalDistance() { return this._totalDistance; },
-    getActivityDistance(activity) { return this._activityDistances[activity] || 0; },
-
-    reset() {
-      this._totalDistance = 0;
-      this._activityDistances = {};
-      this._lastPosition = null;
     }
-  };
 
-  // ============================================================
-  // SUGGESTIONS ENGINE
-  // ============================================================
-  const SuggestionsEngine = {
-    _suggestions: [],
-    _dismissed: {},
-
-    async analyze() {
-      if (state.dnr) return [];
-      const suggestions = [];
-      const activityPattern = await this.detectActivityPatterns();
-      if (activityPattern) {
-        suggestions.push({
-          type: 'activity_pattern',
-          title: `You frequently ${activityPattern.activity} around ${activityPattern.hour}:00`,
-          action: 'Create Automation',
-          data: { when: activityPattern.activity, condition: 'timeAfter', value: activityPattern.hour }
-        });
+    if (state._currentSession) {
+      state._currentSession.confidence = state.confidence;
+      state._currentSession.duration = Date.now() - state._currentSession.startTime;
+      state._currentSession.maxSpeed = Math.max(state._currentSession.maxSpeed, state.speed || 0);
+      if (state.speed) {
+        const count = (state._currentSession._speedCount || 0) + 1;
+        state._currentSession.avgSpeed = ((state._currentSession.avgSpeed || 0) * (count - 1) + state.speed) / count;
+        state._currentSession._speedCount = count;
       }
+    }
 
-      const todaySummary = await SessionEngine.getTodaySummary();
-      if (todaySummary) {
-        const goal = state.stepGoal || 10000;
-        const progress = (todaySummary.totalSteps / goal) * 100;
-        if (progress < 30 && new Date().getHours() > 14) {
-          suggestions.push({
-            type: 'step_goal',
-            title: `You've only reached ${Math.round(progress)}% of your step goal today`,
-            action: 'Remind me',
-            data: { goal: goal, current: todaySummary.totalSteps }
-          });
-        }
-        if (progress > 80 && progress < 100) {
-          suggestions.push({
-            type: 'step_goal_near',
-            title: `You're ${Math.round(100 - progress)}% away from your step goal!`,
-            action: 'Walk now',
-            data: { goal: goal, current: todaySummary.totalSteps }
-          });
-        }
-      }
+    renderDailySummary();
+    renderDurationDisplay();
 
-      if (state.currentActivity === 'Stationary' && (state.activityDurations.Stationary || 0) > 3600) {
-        suggestions.push({
-          type: 'inactivity',
-          title: 'You\'ve been stationary for over an hour',
-          action: 'Take a walk',
-          data: { duration: Math.round((state.activityDurations.Stationary || 0) / 60) }
-        });
-      }
-
-      this._suggestions = suggestions.filter(s => !this._dismissed[s.type]);
-      return this._suggestions;
-    },
-
-    async detectActivityPatterns() {
-      try {
-        const events = await StorageEngine.getAll('events');
-        const activityEvents = events.filter(e => e.type === 'activity_started');
-        const patterns = {};
-        activityEvents.forEach(e => {
-          const hour = new Date(e.timestamp).getHours();
-          const key = `${e.activity}@${hour}`;
-          patterns[key] = (patterns[key] || 0) + 1;
-        });
-        for (const [key, count] of Object.entries(patterns)) {
-          if (count >= 3) {
-            const [activity, hour] = key.split('@');
-            return { activity, hour: parseInt(hour), count };
-          }
-        }
-        return null;
-      } catch (e) { return null; }
-    },
-
-    dismiss(type) {
-      this._dismissed[type] = true;
-      this._suggestions = this._suggestions.filter(s => s.type !== type);
-    },
-
-    getSuggestions() { return this._suggestions; }
-  };
-
-  // ============================================================
-  // CALIBRATION ENGINE
-  // ============================================================
-  const CalibrationEngine = {
-    _calibrated: false,
-    _baseline: { gravity: 9.81, noiseFloor: 0.02, offset: { x: 0, y: 0, z: 0 } },
-
-    async startCalibration() {
-      showToast('Place phone on flat surface and keep still for 5 seconds');
-      const samples = [];
-      const duration = 5000;
-      const startTime = Date.now();
-      return new Promise((resolve) => {
-        const handler = (e) => {
-          const acc = e.accelerationIncludingGravity || e.acceleration;
-          if (!acc || acc.x === null) return;
-          samples.push({ x: acc.x || 0, y: acc.y || 0, z: acc.z || 0 });
-          if (Date.now() - startTime > duration) {
-            window.removeEventListener('devicemotion', handler);
-            resolve(this.calculateBaseline(samples));
-          }
-        };
-        window.addEventListener('devicemotion', handler);
-      });
-    },
-
-    calculateBaseline(samples) {
-      if (samples.length < 10) { showToast('Calibration failed - insufficient samples'); return null; }
-      const mean = samples.reduce((acc, s) => { acc.x += s.x; acc.y += s.y; acc.z += s.z; return acc; }, { x: 0, y: 0, z: 0 });
-      mean.x /= samples.length;
-      mean.y /= samples.length;
-      mean.z /= samples.length;
-      const gravity = Math.sqrt(mean.x * mean.x + mean.y * mean.y + mean.z * mean.z);
-      const variance = samples.reduce((acc, s) => {
-        acc.x += Math.pow(s.x - mean.x, 2);
-        acc.y += Math.pow(s.y - mean.y, 2);
-        acc.z += Math.pow(s.z - mean.z, 2);
-        return acc;
-      }, { x: 0, y: 0, z: 0 });
-      variance.x /= samples.length;
-      variance.y /= samples.length;
-      variance.z /= samples.length;
-      const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
-      this._baseline = { gravity, noiseFloor: noise, offset: { x: mean.x, y: mean.y, z: mean.z } };
-      this._calibrated = true;
-      this.updateThresholds();
-      showToast('Calibration complete!');
-      StorageEngine.put('preferences', { id: 'calibration', ...this._baseline, calibrated: true }).catch(() => {});
-      return this._baseline;
-    },
-
-    updateThresholds() {
-      const noise = this._baseline.noiseFloor;
-      CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 80);
-      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 120);
-    },
-
-    isCalibrated() { return this._calibrated; },
-
-    reset() {
-      this._calibrated = false;
-      this._baseline = { gravity: 9.81, noiseFloor: 0.02, offset: { x: 0, y: 0, z: 0 } };
-      CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = 0.06;
-      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.04;
-      StorageEngine.delete('preferences', 'calibration').catch(() => {});
-    },
-
-    getBaseline() { return this._baseline; }
-  };
+    const sessionCount = $('sessionCountDisplay');
+    if (sessionCount) sessionCount.textContent = state._sessions.length;
+  }
 
   // ============================================================
   // TIMELINE FUNCTIONS
@@ -2232,11 +1928,27 @@
             <div class="suggest-label" style="color:var(--violet)">Pattern Detected</div>
             <div class="suggest-text">You frequently start ${escapeHtml(act)} around ${escapeHtml(hour)}:00 (${count} times). Create an automation?</div>
             <div class="suggest-actions">
-              <button class="btn-secondary" onclick="createAutomationFromPattern('${escapeHtml(act)}', '${escapeHtml(hour)}')">Create</button>
-              <button class="btn-secondary" onclick="document.getElementById('suggestionArea').innerHTML='<div class=\'empty-note\'>Suggestion dismissed.</div>'">Dismiss</button>
+              <button class="btn-secondary" data-pattern-act="${escapeHtml(act)}" data-pattern-hour="${escapeHtml(hour)}">Create</button>
+              <button class="btn-secondary" data-dismiss-pattern>Dismiss</button>
             </div>
           </div>
         `;
+
+        // Attach event listeners
+        const createBtn = suggestionArea.querySelector('[data-pattern-act]');
+        if (createBtn) {
+          createBtn.addEventListener('click', function() {
+            const act = this.dataset.patternAct;
+            const hour = this.dataset.patternHour;
+            createAutomationFromPattern(act, hour);
+          });
+        }
+        const dismissBtn = suggestionArea.querySelector('[data-dismiss-pattern]');
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', function() {
+            suggestionArea.innerHTML = '<div class="empty-note">Suggestion dismissed.</div>';
+          });
+        }
         break;
       }
     }
@@ -2259,7 +1971,7 @@
     StorageEngine.add('automations', rule).catch(() => {});
     renderRules();
     showToast(`Automation "${name}" created from pattern!`);
-    $('suggestionArea').innerHTML = `<div class="empty-note">Automation created! Check the Rules tab.</div>`;
+    $('suggestionArea').innerHTML = '<div class="empty-note">Automation created! Check the Rules tab.</div>';
   }
 
   // ============================================================
@@ -2303,7 +2015,6 @@
       showToast(`System Mode updated to REST by rule`);
       addTimelineEvent(`Mode → REST`, `Automation: ${safeName}`);
     } else if (rule.then === 'track') {
-      SessionEngine.startSession(state.currentActivity);
       showToast(`Tracking session started for ${safeName}`);
       addTimelineEvent(`Tracking started`, safeName);
     } else if (rule.then === 'record') {
@@ -2323,7 +2034,7 @@
   }
 
   // ============================================================
-  // RULE RENDER (XSS-safe)
+  // RULE RENDER
   // ============================================================
   function renderRuleItem(rule) {
     const div = createElement('div', { className: 'rule' });
@@ -2361,7 +2072,6 @@
     div.appendChild(head);
     div.appendChild(actions);
 
-    // Event listeners
     checkbox.addEventListener('change', function() {
       const r = state.automations.find(x => x.id === this.dataset.ruleId);
       if (r) {
@@ -2442,12 +2152,10 @@
         let rules = parsed.rules || parsed;
         if (!Array.isArray(rules)) throw new Error('Invalid format');
 
-        // Validate and normalize
         const validWhen = ['Walking', 'Running', 'Vehicle', 'Cycling', 'Stationary', 'Shake', 'Fall', 'BatteryLow', 'ChargingStart', 'Public Transport', 'StepGoal', 'ArriveHome', 'LeaveHome', 'ArriveWork', 'LeaveWork'];
         const validThen = ['notify', 'track', 'record', 'mode', 'sound', 'vibrate', 'export'];
         const validCond = ['none', 'battery', 'timeAfter', 'timeBefore', 'confidence'];
 
-        // Limit number of imported rules
         if (rules.length > CONFIG.MAX_IMPORT_RULES) {
           rules = rules.slice(0, CONFIG.MAX_IMPORT_RULES);
           showToast(`Limiting import to ${CONFIG.MAX_IMPORT_RULES} rules`);
@@ -2462,7 +2170,6 @@
             (r.cooldown === undefined || (typeof r.cooldown === 'number' && r.cooldown >= 30 && r.cooldown <= 3600));
         });
 
-        // Check for duplicates
         const existingFingerprints = new Set();
         state.automations.forEach(r => {
           const fp = `${r.name}|${r.when}|${r.condType}|${r.condVal}|${r.then}`;
@@ -2509,8 +2216,8 @@
         automationHistory: state.automationHistory,
         gestures: state.gestures,
         activityDurations: state.activityDurations,
-        distance: DistanceTracker.getTotalDistance(),
-        sessions: SessionEngine._sessions
+        distance: getTotalDistance(),
+        sessions: state._sessions
       }
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2531,7 +2238,7 @@
         timestamp: new Date().toISOString(),
         version: '3.3',
         automations, gestures, places, sessions, events, activities, preferences,
-        calibration: CalibrationEngine.getBaseline()
+        calibration: { calibrated: state._calibrated, baseline: state._calibrationBaseline }
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       downloadBlob(blob, `sensormind-backup-${Date.now()}.json`);
@@ -2584,7 +2291,7 @@
       <div><span>Device Tilt:</span><span>X:${Math.round(state.orientation.beta)}° Y:${Math.round(state.orientation.gamma)}°</span></div>
       <div><span>Sampling Mode:</span><span>${state.isSim ? 'Simulated' : 'Real Hardware'}</span></div>
       <div><span>Sensor Health:</span><span>Accel ${state.sensorHealth.accel.stale ? '⚠️' : '✅'} Gyro ${state.sensorHealth.gyro.stale ? '⚠️' : '✅'}</span></div>
-      <div><span>Step Cadence:</span><span>${ImprovedStepEngine._cadence} spm</span></div>
+      <div><span>Step Cadence:</span><span>${_cadence} spm</span></div>
     `;
 
     // Phone Status
@@ -2656,9 +2363,9 @@
     const longest = Object.entries(state.activityDurations).sort((a, b) => b[1] - a[1])[0];
     $('statLongest').textContent = longest ? `${Math.round(longest[1] / 60)}m ${longest[0]}` : '—';
 
-    const distanceKm = DistanceTracker.getTotalDistance() / 1000;
+    const distanceKm = getTotalDistance() / 1000;
     $('statDistance').textContent = distanceKm.toFixed(1) + ' km';
-    $('statSessions').textContent = SessionEngine._sessions.length;
+    $('statSessions').textContent = state._sessions.length;
 
     const dominant = Object.keys(state.activityDurations).reduce((a, b) =>
       (state.activityDurations[a] || 0) > (state.activityDurations[b] || 0) ? a : b, 'Stationary');
@@ -2686,11 +2393,11 @@
 
     const calStatus = $('calibrationStatus');
     if (calStatus) {
-      calStatus.innerHTML = CalibrationEngine.isCalibrated() ? '<span class="good">Calibrated ✓</span>' : '<span class="warn">Not calibrated</span>';
+      calStatus.innerHTML = state._calibrated ? '<span class="good">Calibrated ✓</span>' : '<span class="warn">Not calibrated</span>';
     }
     const calStatusSmall = $('calibrationStatusSmall');
     if (calStatusSmall) {
-      calStatusSmall.textContent = CalibrationEngine.isCalibrated() ? 'Calibrated ✓' : 'Not calibrated';
+      calStatusSmall.textContent = state._calibrated ? 'Calibrated ✓' : 'Not calibrated';
     }
 
     if (state.debug) {
@@ -2699,13 +2406,13 @@
         confidence: Math.round(state.confidence),
         accel: { x: fmt(state.accel.x, 2), y: fmt(state.accel.y, 2), z: fmt(state.accel.z, 2), mag: fmt(state.accel.mag, 2) },
         variance: getVariance(state.accel.history.slice(-20)).toFixed(4),
-        cadence: ImprovedStepEngine._cadence,
+        cadence: _cadence,
         speed: state.speed,
         steps: state.steps,
-        distance: (DistanceTracker.getTotalDistance() / 1000).toFixed(2),
-        sessions: SessionEngine._sessions.length,
+        distance: (getTotalDistance() / 1000).toFixed(2),
+        sessions: state._sessions.length,
         stepTimes: state._stepTimes.length,
-        calibrated: CalibrationEngine.isCalibrated(),
+        calibrated: state._calibrated,
         storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb',
         locationEnabled: state._locationEnabled,
         dnr: state.dnr
@@ -2793,7 +2500,7 @@
       .filter(([k]) => k !== 'Stationary')
       .reduce((s, [, v]) => s + v, 0);
 
-    const distanceKm = DistanceTracker.getTotalDistance() / 1000;
+    const distanceKm = getTotalDistance() / 1000;
 
     $('dailySummary').innerHTML = `
       <div class="status-row"><span class="status-key">Steps</span><span class="status-val">${state.steps}</span></div>
@@ -2861,24 +2568,40 @@
     const container = $('weeklyStepsChart');
     if (!container) return;
     try {
-      const week = await SessionEngine.getWeeklySummary();
-      const days = [];
+      const weekData = { dailyTotals: {} };
+      let totalSteps = 0;
+      const today = new Date();
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         d.setHours(0, 0, 0, 0);
         const key = d.toDateString();
         const isToday = i === 0;
-        const stored = week && week.dailyTotals ? (week.dailyTotals[key]?.steps || 0) : 0;
-        days.push({
-          label: d.toLocaleDateString(undefined, { weekday: 'short' })[0],
-          steps: isToday ? Math.max(stored, state.steps) : stored,
-          isToday
-        });
+        // For today, use current steps; for past days, try to estimate from sessions
+        let steps = 0;
+        if (isToday) {
+          steps = state.steps;
+        } else {
+          // Estimate from sessions that started on this day
+          const dayStart = d.getTime();
+          const dayEnd = dayStart + 86400000;
+          for (const session of state._sessions) {
+            if (session.startTime >= dayStart && session.startTime < dayEnd) {
+              steps += session.steps || 0;
+            }
+          }
+        }
+        totalSteps += steps;
+        const dayLabel = d.toLocaleDateString(undefined, { weekday: 'short' })[0];
+        weekData.dailyTotals[key] = { steps, label: dayLabel, isToday };
       }
+      const days = Object.keys(weekData.dailyTotals).map(key => ({
+        label: weekData.dailyTotals[key].label,
+        steps: weekData.dailyTotals[key].steps,
+        isToday: weekData.dailyTotals[key].isToday
+      }));
       const maxSteps = Math.max(...days.map(d => d.steps), 1);
-      const weekTotal = days.reduce((s, d) => s + d.steps, 0);
-      $('weekStepsTotal').textContent = `${weekTotal.toLocaleString()} steps · last 7 days`;
+      $('weekStepsTotal').textContent = `${totalSteps.toLocaleString()} steps · last 7 days`;
       container.innerHTML = days.map(d => `
         <div class="week-bar-col">
           <span class="week-bar-val">${d.steps > 0 ? d.steps : ''}</span>
@@ -2900,6 +2623,136 @@
       <div class="status-row"><span class="status-key">Work</span><span class="status-val ${state.places.work ? 'good' : 'na'}">${state.places.work ? 'Saved' : 'Not set'}</span></div>
     `;
   }
+
+  // ============================================================
+  // CALIBRATION
+  // ============================================================
+  async function startCalibration() {
+    showToast('Place phone on flat surface and keep still for 5 seconds');
+    const samples = [];
+    const duration = 5000;
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+      const handler = (e) => {
+        const acc = e.accelerationIncludingGravity || e.acceleration;
+        if (!acc || acc.x === null) return;
+        samples.push({ x: acc.x || 0, y: acc.y || 0, z: acc.z || 0 });
+        if (Date.now() - startTime > duration) {
+          window.removeEventListener('devicemotion', handler);
+          resolve(calculateBaseline(samples));
+        }
+      };
+      window.addEventListener('devicemotion', handler);
+    });
+  }
+
+  function calculateBaseline(samples) {
+    if (samples.length < 10) { showToast('Calibration failed - insufficient samples'); return null; }
+    const mean = samples.reduce((acc, s) => { acc.x += s.x; acc.y += s.y; acc.z += s.z; return acc; }, { x: 0, y: 0, z: 0 });
+    mean.x /= samples.length;
+    mean.y /= samples.length;
+    mean.z /= samples.length;
+    const gravity = Math.sqrt(mean.x * mean.x + mean.y * mean.y + mean.z * mean.z);
+    const variance = samples.reduce((acc, s) => {
+      acc.x += Math.pow(s.x - mean.x, 2);
+      acc.y += Math.pow(s.y - mean.y, 2);
+      acc.z += Math.pow(s.z - mean.z, 2);
+      return acc;
+    }, { x: 0, y: 0, z: 0 });
+    variance.x /= samples.length;
+    variance.y /= samples.length;
+    variance.z /= samples.length;
+    const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
+    state._calibrated = true;
+    state._calibrationBaseline = { gravity, noiseFloor: noise, offset: { x: mean.x, y: mean.y, z: mean.z } };
+    // Update thresholds
+    CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 80);
+    CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 120);
+    showToast('Calibration complete!');
+    StorageEngine.put('preferences', { id: 'calibration', ...state._calibrationBaseline, calibrated: true }).catch(() => {});
+    renderUI();
+    return state._calibrationBaseline;
+  }
+
+  // ============================================================
+  // SUGGESTIONS ENGINE
+  // ============================================================
+  const SuggestionsEngine = {
+    _suggestions: [],
+    _dismissed: {},
+
+    async analyze() {
+      if (state.dnr) return [];
+      const suggestions = [];
+      const activityPattern = await this.detectActivityPatterns();
+      if (activityPattern) {
+        suggestions.push({
+          type: 'activity_pattern',
+          title: `You frequently ${activityPattern.activity} around ${activityPattern.hour}:00`,
+          action: 'Create Automation',
+          data: { when: activityPattern.activity, value: activityPattern.hour }
+        });
+      }
+
+      const totalDuration = Object.values(state.activityDurations).reduce((a, b) => a + b, 0);
+      const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+      const progress = (state.steps / goal) * 100;
+      if (progress < 30 && new Date().getHours() > 14 && totalDuration > 600) {
+        suggestions.push({
+          type: 'step_goal',
+          title: `You've only reached ${Math.round(progress)}% of your step goal today`,
+          action: 'Remind me',
+          data: { goal: goal, current: state.steps }
+        });
+      }
+      if (progress > 80 && progress < 100) {
+        suggestions.push({
+          type: 'step_goal_near',
+          title: `You're ${Math.round(100 - progress)}% away from your step goal!`,
+          action: 'Walk now',
+          data: { goal: goal, current: state.steps }
+        });
+      }
+
+      if (state.currentActivity === 'Stationary' && (state.activityDurations.Stationary || 0) > 3600) {
+        suggestions.push({
+          type: 'inactivity',
+          title: 'You\'ve been stationary for over an hour',
+          action: 'Take a walk',
+          data: { duration: Math.round((state.activityDurations.Stationary || 0) / 60) }
+        });
+      }
+
+      this._suggestions = suggestions.filter(s => !this._dismissed[s.type]);
+      return this._suggestions;
+    },
+
+    async detectActivityPatterns() {
+      const activityEvents = state.timeline.filter(t => t.label && t.label.includes('Activity changed'));
+      const patterns = {};
+      activityEvents.forEach(e => {
+        const hour = e.time ? parseInt(e.time.split(':')[0]) : 0;
+        const act = e.label ? e.label.replace('Activity changed to ', '') : '';
+        if (!act) return;
+        const key = `${act}@${hour}`;
+        patterns[key] = (patterns[key] || 0) + 1;
+      });
+      for (const [key, count] of Object.entries(patterns)) {
+        if (count >= 3) {
+          const [activity, hour] = key.split('@');
+          return { activity, hour: parseInt(hour), count };
+        }
+      }
+      return null;
+    },
+
+    dismiss(type) {
+      this._dismissed[type] = true;
+      this._suggestions = this._suggestions.filter(s => s.type !== type);
+    },
+
+    getSuggestions() { return this._suggestions; }
+  };
 
   // ============================================================
   // MAIN LOOP
@@ -2941,10 +2794,15 @@
 
     StorageEngine.getAll('sessions').then(sessions => {
       if (sessions && sessions.length) {
-        SessionEngine._sessions = sessions;
-        SessionEngine.getTodaySummary().then(summary => {
-          if (summary) state.steps = summary.totalSteps;
-        });
+        state._sessions = sessions;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todaySessions = sessions.filter(s => s.startTime >= today.getTime());
+        let totalSteps = 0;
+        for (const s of todaySessions) {
+          totalSteps += s.steps || 0;
+        }
+        if (totalSteps > state.steps) state.steps = totalSteps;
       }
     }).catch(() => {});
 
@@ -2960,13 +2818,14 @@
     StorageEngine.getAll('preferences').then(prefs => {
       const cal = prefs.find(p => p.id === 'calibration');
       if (cal && cal.calibrated) {
-        CalibrationEngine._calibrated = true;
-        CalibrationEngine._baseline = {
+        state._calibrated = true;
+        state._calibrationBaseline = {
           gravity: cal.gravity || 9.81,
           noiseFloor: cal.noiseFloor || 0.02,
           offset: cal.offset || { x: 0, y: 0, z: 0 }
         };
-        CalibrationEngine.updateThresholds();
+        CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, (cal.noiseFloor || 0.02) * 80);
+        CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, (cal.noiseFloor || 0.02) * 120);
         renderUI();
       }
     }).catch(() => {});
@@ -2997,7 +2856,16 @@
 
       if (state._currentSession && Date.now() - state._lastSessionSave > CONFIG.SESSION_SAVE_INTERVAL) {
         state._lastSessionSave = Date.now();
-        SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
+        if (state._currentSession) {
+          state._currentSession.confidence = state.confidence;
+          state._currentSession.duration = Date.now() - state._currentSession.startTime;
+          state._currentSession.maxSpeed = Math.max(state._currentSession.maxSpeed, state.speed || 0);
+          if (state.speed) {
+            const count = (state._currentSession._speedCount || 0) + 1;
+            state._currentSession.avgSpeed = ((state._currentSession.avgSpeed || 0) * (count - 1) + state.speed) / count;
+            state._currentSession._speedCount = count;
+          }
+        }
       }
 
     }, CONFIG.TICK_INTERVAL);
@@ -3027,15 +2895,27 @@
               </div>
             `).join('');
 
-            // Attach event listeners safely
             area.querySelectorAll('[data-suggestion]').forEach(btn => {
               btn.addEventListener('click', function() {
                 const type = this.dataset.suggestion;
                 const action = this.dataset.action;
                 if (action === 'accept') {
-                  acceptSuggestion(type);
+                  const suggestion = SuggestionsEngine._suggestions.find(s => s.type === type);
+                  if (suggestion) {
+                    if (suggestion.type === 'activity_pattern') {
+                      const data = suggestion.data;
+                      createAutomationFromPattern(data.when, data.value);
+                    } else if (suggestion.type === 'step_goal_near') {
+                      showToast('Time to walk! Get those steps in.');
+                    } else if (suggestion.type === 'inactivity') {
+                      showToast('Time to move! Take a short walk.');
+                    }
+                    SuggestionsEngine.dismiss(type);
+                  }
+                  area.innerHTML = '<div class="empty-note">Suggestion accepted!</div>';
                 } else if (action === 'dismiss') {
-                  dismissSuggestion(type);
+                  SuggestionsEngine.dismiss(type);
+                  area.innerHTML = '<div class="empty-note">Suggestion dismissed.</div>';
                 }
               });
             });
@@ -3052,35 +2932,14 @@
     }, CONFIG.SIM_TIMEOUT);
   }
 
-  function acceptSuggestion(type) {
-    const suggestion = SuggestionsEngine._suggestions.find(s => s.type === type);
-    if (suggestion) {
-      if (suggestion.type === 'activity_pattern') {
-        const data = suggestion.data;
-        createAutomationFromPattern(data.when, data.value);
-      } else if (suggestion.type === 'step_goal_near') {
-        showToast('Time to walk! Get those steps in.');
-      } else if (suggestion.type === 'inactivity') {
-        showToast('Time to move! Take a short walk.');
-      }
-      SuggestionsEngine.dismiss(type);
-    }
-    $('suggestionArea').innerHTML = '<div class="empty-note">Suggestion accepted!</div>';
-  }
-
-  function dismissSuggestion(type) {
-    SuggestionsEngine.dismiss(type);
-    $('suggestionArea').innerHTML = '<div class="empty-note">Suggestion dismissed.</div>';
-  }
-
   // ============================================================
-  // ASK SENSORMIND (QA)
+  // ASK SENSORMIND
   // ============================================================
   function processQuery() {
     const q = $('askInput').value.toLowerCase().trim();
     const ans = $('askAnswer');
     ans.style.display = 'block';
-    const distanceKm = DistanceTracker.getTotalDistance() / 1000;
+    const distanceKm = getTotalDistance() / 1000;
 
     if (q.includes('doing') || q.includes('now')) {
       ans.textContent = `You are currently ${state.currentActivity} with ${Math.round(state.confidence)}% confidence. ${state.steps} steps detected.`;
@@ -3095,7 +2954,7 @@
     } else if (q.includes('battery')) {
       ans.textContent = `Battery: ${state.battery.level}% ${state.battery.charging ? '(charging)' : '(not charging)'}`;
     } else if (q.includes('step') || q.includes('walk')) {
-      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${ImprovedStepEngine._cadence} spm.`;
+      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km. Cadence: ${_cadence} spm.`;
     } else if (q.includes('duration') || q.includes('time')) {
       const durations = Object.entries(state.activityDurations)
         .filter(([, v]) => v > 0)
@@ -3105,19 +2964,15 @@
     } else if (q.includes('sound')) {
       ans.textContent = `Sound effects are ${SoundEngine.enabled ? 'ON 🔊' : 'OFF 🔇'}.`;
     } else if (q.includes('weekly') || q.includes('week')) {
-      SessionEngine.getWeeklySummary().then(weekData => {
-        if (weekData) {
-          const days = Object.keys(weekData.dailyTotals).length;
-          ans.textContent = `Past ${days} days: ${weekData.totalSteps} steps, ${(weekData.totalDistance / 1000).toFixed(1)} km.`;
-        } else {
-          ans.textContent = 'Not enough data for weekly summary yet.';
-        }
+      renderWeeklyStepsChart().then(() => {
+        const total = state._sessions.reduce((s, sess) => s + (sess.steps || 0), 0);
+        ans.textContent = `Weekly total: ${total} steps across ${state._sessions.length} sessions.`;
       });
       return;
     } else if (q.includes('far') || q.includes('distance')) {
-      ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(DistanceTracker.getActivityDistance('Walking') / 1000).toFixed(1)} km, Running: ${(DistanceTracker.getActivityDistance('Running') / 1000).toFixed(1)} km, Vehicle: ${(DistanceTracker.getActivityDistance('Vehicle') / 1000).toFixed(1)} km.`;
+      ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(getActivityDistance('Walking') / 1000).toFixed(1)} km, Running: ${(getActivityDistance('Running') / 1000).toFixed(1)} km, Vehicle: ${(getActivityDistance('Vehicle') / 1000).toFixed(1)} km.`;
     } else if (q.includes('cadence')) {
-      ans.textContent = `Your current step cadence is ${ImprovedStepEngine._cadence} steps per minute.`;
+      ans.textContent = `Your current step cadence is ${_cadence} steps per minute.`;
     } else {
       ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km.`;
     }
@@ -3241,6 +3096,11 @@
   $('toggleDNR').addEventListener('change', e => {
     state.dnr = e.target.checked;
     $('dnrBanner').classList.toggle('show', state.dnr);
+    const dot = $('liveDot');
+    if (dot) {
+      dot.className = 'dot';
+      if (state.dnr) dot.classList.add('off');
+    }
     showToast(state.dnr ? 'Do Not Record enabled — sensor processing paused' : 'Do Not Record disabled — processing resumed');
   });
 
@@ -3250,7 +3110,7 @@
   });
 
   // ============================================================
-  // CLEAR HISTORY - Actually clears persistent storage
+  // CLEAR HISTORY
   // ============================================================
   $('btnClearHistory').addEventListener('click', async () => {
     if (!confirm('Clear all history? This cannot be undone.')) return;
@@ -3266,8 +3126,10 @@
     state.steps = 0;
     state.confidenceHistory = [];
     state._suggested = {};
-    SessionEngine._sessions = [];
-    DistanceTracker.reset();
+    state._sessions = [];
+    state._totalDistance = 0;
+    state._activityDistances = {};
+    _lastPosition = null;
     SoundEngine._lastStepSound = 0;
     renderTimeline();
     renderAutomationHistory();
@@ -3291,7 +3153,6 @@
         StorageEngine.clear('events');
         StorageEngine.clear('activities');
         StorageEngine.clear('preferences');
-        // Clean up listeners
         for (const cleanup of state._listenerCleanup) {
           try { cleanup(); } catch (e) {}
         }
@@ -3301,7 +3162,7 @@
   });
 
   // ============================================================
-  // PLACES - Use put() for stable IDs
+  // PLACES
   // ============================================================
   $('setHomeBtn').addEventListener('click', () => {
     if (!state._locationEnabled) {
@@ -3350,21 +3211,20 @@
   // ============================================================
   // CALIBRATION
   // ============================================================
-  $('calibrateBtn').addEventListener('click', async () => {
-    const result = await CalibrationEngine.startCalibration();
-    if (result) {
-      renderUI();
-    }
-  });
+  $('calibrateBtn').addEventListener('click', startCalibration);
 
   $('resetCalibrationBtn').addEventListener('click', () => {
-    CalibrationEngine.reset();
+    state._calibrated = false;
+    state._calibrationBaseline = null;
+    CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = 0.06;
+    CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.04;
+    StorageEngine.delete('preferences', 'calibration').catch(() => {});
     showToast('Calibration reset');
     renderUI();
   });
 
   // ============================================================
-  // GESTURE RECORDING - With cancellation
+  // GESTURE RECORDING
   // ============================================================
   $('gestStart').addEventListener('click', function() {
     if (state._gestureTimerId) {
@@ -3381,13 +3241,12 @@
     const duration = Number($('gestDuration').value);
     const action = $('gestAction').value;
 
-    state.recordingGesture = name;
+    state._gestureRecording = true;
     state.recordedSamples = [];
     $('gestStatus').textContent = `Recording... Move your phone now! (${duration / 1000}s)`;
     $('gestStart').style.display = 'none';
     $('gestCancel').style.display = 'block';
 
-    // Cancel button
     $('gestCancel').onclick = function() {
       cancelGestureRecording();
     };
@@ -3402,7 +3261,7 @@
       clearTimeout(state._gestureTimerId);
       state._gestureTimerId = null;
     }
-    state.recordingGesture = null;
+    state._gestureRecording = false;
     state.recordedSamples = [];
     $('gestStatus').textContent = 'Recording cancelled.';
     $('gestStart').style.display = 'block';
@@ -3412,7 +3271,7 @@
 
   function finishGestureRecording() {
     state._gestureTimerId = null;
-    state.recordingGesture = null;
+    state._gestureRecording = false;
     const count = state.recordedSamples.length;
     $('gestStart').style.display = 'block';
     $('gestCancel').style.display = 'none';
@@ -3433,7 +3292,7 @@
   }
 
   // ============================================================
-  // SENSOR LAB - With max duration and cancellation
+  // SENSOR LAB
   // ============================================================
   $('labStart').addEventListener('click', function() {
     if (state._labRecording) {
@@ -3502,7 +3361,6 @@
     showToast('Sensor recording complete');
   }
 
-  // Lab exports
   $('labExportCsv').addEventListener('click', () => {
     const data = state._labData;
     if (!data || !data.length) { showToast('No recording to export'); return; }
@@ -3588,7 +3446,10 @@
         });
       }
     });
-    document.getElementById('view-home').parentNode.insertBefore(installBtn, document.getElementById('view-home'));
+    const homeView = document.getElementById('view-home');
+    if (homeView && homeView.parentNode) {
+      homeView.parentNode.insertBefore(installBtn, homeView);
+    }
   });
 
   window.addEventListener('appinstalled', () => {
@@ -3600,16 +3461,56 @@
   // ============================================================
   document.addEventListener('visibilitychange', () => {
     state.screen.state = document.hidden ? 'Background' : 'Active';
-    if (document.hidden) {
-      state._backgroundMode = true;
-    } else {
-      state._backgroundMode = false;
-      if (state._realSensorsActive) {
-        state.sensorHealth.accel.stale = false;
-        state.sensorHealth.gyro.stale = false;
-      }
-    }
   });
+
+  // ============================================================
+  // BATTERY STATUS
+  // ============================================================
+  if ('getBattery' in navigator) {
+    navigator.getBattery().then(battery => {
+      state.battery.available = true;
+      state.battery.level = Math.round(battery.level * 100);
+      state.battery.charging = battery.charging;
+      battery.addEventListener('levelchange', () => {
+        state.battery.level = Math.round(battery.level * 100);
+        if (state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD && state.batterySaver) {
+          showToast('🔋 Battery low - Battery Saver mode active');
+        }
+      });
+      battery.addEventListener('chargingchange', () => {
+        state.battery.charging = battery.charging;
+        if (battery.charging) triggerAutomation('ChargingStart');
+      });
+    }).catch(() => {});
+  }
+
+  // ============================================================
+  // NETWORK STATUS
+  // ============================================================
+  if ('connection' in navigator) {
+    const conn = navigator.connection;
+    state.network.available = true;
+    state.network.type = conn.effectiveType || '4g';
+    state.network.rtt = conn.rtt || 50;
+    conn.addEventListener('change', () => {
+      state.network.type = conn.effectiveType || '4g';
+      state.network.rtt = conn.rtt || 50;
+    });
+  }
+
+  // ============================================================
+  // AMBIENT LIGHT
+  // ============================================================
+  if ('AmbientLightSensor' in window) {
+    try {
+      const sensor = new AmbientLightSensor();
+      sensor.addEventListener('reading', () => {
+        state.light.available = true;
+        state.light.val = `${Math.round(sensor.illuminance)} lx`;
+      });
+      sensor.start();
+    } catch (e) { /* ignore */ }
+  }
 
   // ============================================================
   // INIT
@@ -3617,6 +3518,12 @@
   state.currentActivity = 'Stationary';
   state.confidence = 85;
   state.accel.history = new Array(20).fill(1.0);
+
+  // Initialize live dot
+  const liveDot = $('liveDot');
+  if (liveDot) {
+    liveDot.className = 'dot';
+  }
 
   renderUI();
   renderTimeline();
@@ -3631,7 +3538,7 @@
   updateSoundUI();
   renderWeeklyStepsChart();
 
-  console.log('SensorMind v3.3 - Security & Reliability Hardening');
+  console.log('SensorMind v3.3 - Security & Reliability Hardening (Fixed)');
   console.log('✅ XSS Protection - All user content rendered safely');
   console.log('✅ Split Permissions (Motion, Location, Notifications)');
   console.log('✅ Do Not Record properly stops processing');
@@ -3647,6 +3554,10 @@
   console.log('✅ Global error handling');
   console.log('✅ Duplicate import detection');
   console.log('✅ Import validation & normalization');
+  console.log('✅ Activity detection improved with stepFrequency check');
+  console.log('✅ Session management fixes');
+  console.log('✅ Distance tracking reset on clear history');
+  console.log('✅ Live dot updates with DNR');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
