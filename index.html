@@ -293,24 +293,25 @@
   <div class="tagline">"Your phone knows more than you think."</div>
 
   <div class="perm-explain">
-    <div class="perm-row"><div class="perm-icon">📈</div><div><div class="perm-row-title">Accelerometer &amp; gyroscope</div><div class="perm-row-desc">Used to detect movement, steps, and activity like walking or driving.</div></div></div>
-    <div class="perm-row"><div class="perm-icon">📍</div><div><div class="perm-row-title">Location</div><div class="perm-row-desc">Used for travel speed and place context (e.g. "at work"). Never uploaded.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">📈</div><div><div class="perm-row-title">Motion Sensors</div><div class="perm-row-desc">Used for activity detection, step counting, and gesture recognition. Required for core functionality.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">📍</div><div><div class="perm-row-title">Location (Optional)</div><div class="perm-row-desc">Enables travel speed, distance tracking, and place context. Disable for maximum privacy.</div></div></div>
+    <div class="perm-row"><div class="perm-icon">🔔</div><div><div class="perm-row-title">Notifications (Optional)</div><div class="perm-row-desc">Alerts for step goals, automations, and fall detection. Only requested if you enable them.</div></div></div>
     <div class="perm-row"><div class="perm-icon">🔋</div><div><div class="perm-row-title">Device state</div><div class="perm-row-desc">Battery, network and screen state, when your browser exposes them.</div></div></div>
-    <div class="perm-row"><div class="perm-icon">🎙️</div><div><div class="perm-row-title">Camera &amp; microphone</div><div class="perm-row-desc">Not requested. Only used if you explicitly enable a feature that needs them (none currently do).</div></div></div>
   </div>
 
-  <button class="btn-primary" id="enableBtn">Enable Sensors</button>
-  <div class="fine">Everything runs on-device. On desktop, or if a sensor is missing, SensorMind falls back to a clearly-labeled simulation so you can still see the pipeline work.</div>
+  <button class="btn-primary" id="enableMotionBtn">Enable Motion Sensors</button>
+  <button class="btn-secondary" id="enableLocationBtn" style="margin-top:8px;">Enable Location (Optional)</button>
+  <div class="fine">Everything runs on-device. Sensor data is processed locally and is not uploaded by SensorMind.</div>
 </div>
 
-<div id="fallModal">
+<div id="fallModal" role="dialog" aria-modal="true" aria-labelledby="fall-title">
   <div class="fall-box">
     <div class="icon">⚠️</div>
-    <h3>Possible fall detected</h3>
+    <h3 id="fall-title">Possible fall detected</h3>
     <p>SensorMind noticed a sudden impact followed by stillness. This is an experimental, non-medical heuristic — it can be wrong.</p>
     <div class="fall-btns">
       <button id="fallOk">I'm OK</button>
-      <button id="fallHelp">Need Help</button>
+      <button id="fallHelp">Request Help (Demo)</button>
     </div>
   </div>
 </div>
@@ -327,13 +328,13 @@
     <div class="header-status"><span class="dot" id="liveDot"></span><span id="liveLabel">LIVE</span></div>
   </header>
   <div class="sim-banner" id="simBanner">SIMULATION MODE — values are generated, not real sensor readings</div>
-  <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — nothing is being stored</div>
+  <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — sensor-derived processing is paused</div>
 
   <!-- Sound Toggle -->
   <div class="sound-toggle">
     <span class="label">🔊 Sound Effects</span>
     <span class="status on" id="soundStatus">ON</span>
-    <button class="sound-btn" id="soundToggleBtn">🔇</button>
+    <button class="sound-btn" id="soundToggleBtn" aria-label="Toggle sound effects">🔇</button>
   </div>
 
   <!-- Quick Mode Buttons -->
@@ -455,7 +456,7 @@
       <div class="builder-box">
         <div class="builder-step">
           <div class="builder-label">Automation Name</div>
-          <input class="num-input" id="bName" type="text" placeholder="e.g. Morning Walk">
+          <input class="num-input" id="bName" type="text" placeholder="e.g. Morning Walk" maxlength="50">
         </div>
         <div class="builder-step">
           <div class="builder-label">When</div>
@@ -487,7 +488,7 @@
               <option value="timeBefore">Time before (HH)</option>
               <option value="confidence">Confidence above %</option>
             </select>
-            <input class="num-input" id="bCondVal" type="number" placeholder="value" style="max-width:100px">
+            <input class="num-input" id="bCondVal" type="number" placeholder="value" style="max-width:100px" min="0" max="100">
           </div>
         </div>
         <div class="builder-step">
@@ -504,7 +505,7 @@
         </div>
         <div class="builder-step">
           <div class="builder-label">Cooldown (seconds, min 30)</div>
-          <input class="num-input" id="bCooldown" type="number" value="30" min="30">
+          <input class="num-input" id="bCooldown" type="number" value="30" min="30" max="3600">
         </div>
         <button class="btn-primary" id="bCreate" style="width:100%;padding:12px;">Create Automation</button>
       </div>
@@ -595,7 +596,7 @@
       <div class="section-title">My Gestures <small id="gestureCount">0 saved</small></div>
       <div class="card" style="margin-bottom:12px;">
         <div class="builder-row" style="margin-bottom:10px;">
-          <input class="num-input" id="gestName" type="text" placeholder="Gesture name, e.g. Triple Shake">
+          <input class="num-input" id="gestName" type="text" placeholder="Gesture name, e.g. Triple Shake" maxlength="30">
         </div>
         <div class="builder-row" style="margin-bottom:10px;">
           <select id="gestDuration">
@@ -724,7 +725,7 @@
       <div class="card">
         <div class="status-row">
           <span class="status-key">Daily Steps Goal</span>
-          <input type="number" id="stepGoalInput" value="10000" style="width:80px;background:var(--panel2);border:1px solid var(--border);color:var(--text-bright);padding:4px 8px;border-radius:4px;">
+          <input type="number" id="stepGoalInput" value="10000" style="width:80px;background:var(--panel2);border:1px solid var(--border);color:var(--text-bright);padding:4px 8px;border-radius:4px;" min="100" max="100000">
         </div>
         <div class="status-row">
           <span class="status-key">Progress</span>
@@ -756,18 +757,18 @@
       </div>
 
       <footer class="note">
-        SensorMind runs entirely client-side inside your browser engine. Sensor data is processed locally and is not uploaded by SensorMind.
+        SensorMind runs entirely client-side inside your browser engine. Sensor data is processed locally and is not uploaded by SensorMind. Google Fonts are loaded from Google's servers.
       </footer>
     </div>
   </div>
 
-  <nav>
-    <button class="nav-btn active" data-target="view-home"><span>🧭</span><span>Context</span><span class="nav-dot"></span></button>
-    <button class="nav-btn" data-target="view-activity"><span>📊</span><span>Activity</span><span class="nav-dot"></span></button>
-    <button class="nav-btn" data-target="view-automations"><span>⚡</span><span>Rules</span><span class="nav-dot"></span></button>
-    <button class="nav-btn" data-target="view-insights"><span>💡</span><span>Insights</span><span class="nav-dot"></span></button>
-    <button class="nav-btn" data-target="view-sensors"><span>📡</span><span>Sensors</span><span class="nav-dot"></span></button>
-    <button class="nav-btn" data-target="view-settings"><span>⚙️</span><span>Settings</span><span class="nav-dot"></span></button>
+  <nav role="tablist" aria-label="Main sections">
+    <button class="nav-btn active" data-target="view-home" role="tab" aria-selected="true" aria-current="page"><span>🧭</span><span>Context</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-activity" role="tab" aria-selected="false"><span>📊</span><span>Activity</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-automations" role="tab" aria-selected="false"><span>⚡</span><span>Rules</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-insights" role="tab" aria-selected="false"><span>💡</span><span>Insights</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-sensors" role="tab" aria-selected="false"><span>📡</span><span>Sensors</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-settings" role="tab" aria-selected="false"><span>⚙️</span><span>Settings</span><span class="nav-dot"></span></button>
   </nav>
 </div>
 
@@ -804,6 +805,7 @@
     MAX_HISTORY: 60,
     TICK_INTERVAL: 100,
     SLOW_TICK_INTERVAL: 1500,
+    UI_UPDATE_INTERVAL: 500, // Reduced UI update frequency
     BATTERY_SAVER_THRESHOLD: 20,
     SIM_TIMEOUT: 3000,
     STEP_GOAL_DEFAULT: 10000,
@@ -816,7 +818,17 @@
   };
 
   // ============================================================
-  // STATE - Fixed with stepTimes and proper session tracking
+  // XSS ESCAPE FUNCTION
+  // ============================================================
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ============================================================
+  // STATE
   // ============================================================
   const state = {
     isLive: false,
@@ -832,7 +844,7 @@
     shakeIntensity: 0,
     steps: 0,
     _lastStepTime: 0,
-    _stepTimes: [], // FIXED: stepTimes array for cadence calculation
+    _stepTimes: [],
     speed: 0,
     battery: { level: 100, charging: false, available: false },
     network: { type: '4g', rtt: 50, available: false },
@@ -876,11 +888,13 @@
     _goalReached: false,
     _suggestionsShown: false,
     _lastGpsUpdate: 0,
-    _gpsFilteredSpeed: 0
+    _gpsFilteredSpeed: 0,
+    _locationEnabled: false,
+    _motionEnabled: false
   };
 
   // ============================================================
-  // SOUND ENGINE (Web Audio API)
+  // SOUND ENGINE
   // ============================================================
   const SoundEngine = {
     enabled: true,
@@ -971,14 +985,8 @@
       } catch (e) { /* ignore */ }
     },
 
-    setEnabled(val) {
-      this.enabled = val;
-    },
-
-    toggle() {
-      this.enabled = !this.enabled;
-      return this.enabled;
-    }
+    setEnabled(val) { this.enabled = val; },
+    toggle() { this.enabled = !this.enabled; return this.enabled; }
   };
 
   // ============================================================
@@ -987,13 +995,10 @@
   const VibrationEngine = {
     _enabled: true,
 
-    isSupported() {
-      return 'vibrate' in navigator;
-    },
+    isSupported() { return 'vibrate' in navigator; },
 
     vibrate(pattern) {
-      if (!this._enabled) return;
-      if (!this.isSupported()) return;
+      if (!this._enabled || !this.isSupported()) return;
       try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
     },
 
@@ -1007,11 +1012,12 @@
   };
 
   // ============================================================
-  // NOTIFICATION SYSTEM
+  // NOTIFICATION SYSTEM - User-driven
   // ============================================================
   const NotificationSystem = {
     _permission: 'default',
-    _enabled: true,
+    _enabled: false,
+    _requested: false,
 
     requestPermission() {
       if (!('Notification' in window)) return Promise.resolve(false);
@@ -1023,6 +1029,7 @@
         this._permission = 'denied';
         return Promise.resolve(false);
       }
+      this._requested = true;
       return Notification.requestPermission().then(result => {
         this._permission = result;
         return result === 'granted';
@@ -1056,21 +1063,36 @@
       this.show('⚠️ Possible Fall Detected', 'Are you OK? Tap to dismiss.', { vibrate: [100, 50, 100, 50, 100, 50, 200], tag: 'fall-alert' });
     },
 
-    setEnabled(enabled) { this._enabled = enabled; }
+    setEnabled(enabled) {
+      this._enabled = enabled;
+      if (enabled && !this._requested && this._permission !== 'granted') {
+        this.requestPermission();
+      }
+    }
   };
 
   // ============================================================
-  // IMPROVED ACTIVITY ENGINE - Independent of step state
+  // IMPROVED ACTIVITY ENGINE
   // ============================================================
   const ImprovedActivityEngine = {
     _confirmedActivity: 'Stationary',
     _candidateActivity: null,
     _candidateStartTime: 0,
     _confirmationDelay: CONFIG.CONFIRMATION_DELAY,
+    _filterBuffer: [],
+
+    lowPassFilter(value, alpha = 0.3) {
+      this._filterBuffer.push(value);
+      if (this._filterBuffer.length > 10) this._filterBuffer.shift();
+      if (this._filterBuffer.length < 3) return value;
+      return this._filterBuffer.reduce((a, b) => a + b, 0) / this._filterBuffer.length;
+    },
 
     extractFeatures(magHistory, gyroHistory, gpsData) {
-      const recent = magHistory.slice(-40);
-      if (recent.length < 5) return null;
+      if (magHistory.length < 5) return null;
+      // Apply low-pass filter
+      const filtered = magHistory.slice(-40).map(v => this.lowPassFilter(v));
+      if (filtered.length < 3) return null;
 
       const features = {
         variance: 0,
@@ -1082,17 +1104,16 @@
         magMean: 0
       };
 
-      features.magMean = recent.reduce((a,b) => a+b, 0) / recent.length;
-      features.variance = recent.reduce((s,v) => s + Math.pow(v - features.magMean, 2), 0) / recent.length;
-      features.peak = Math.max(...recent.map(v => Math.abs(v-1)));
+      features.magMean = filtered.reduce((a, b) => a + b, 0) / filtered.length;
+      features.variance = filtered.reduce((s, v) => s + Math.pow(v - features.magMean, 2), 0) / filtered.length;
+      features.peak = Math.max(...filtered.map(v => Math.abs(v - 1)));
 
       let jerkSum = 0;
-      for (let i = 1; i < recent.length; i++) {
-        jerkSum += Math.abs(recent[i] - recent[i-1]);
+      for (let i = 1; i < filtered.length; i++) {
+        jerkSum += Math.abs(filtered[i] - filtered[i-1]);
       }
-      features.jerk = jerkSum / recent.length;
+      features.jerk = jerkSum / filtered.length;
 
-      // Calculate step frequency from stepTimes
       const stepTimes = state._stepTimes || [];
       if (stepTimes.length > 1) {
         const recentSteps = stepTimes.filter(t => Date.now() - t < 10000);
@@ -1103,8 +1124,8 @@
 
       if (gyroHistory && gyroHistory.length > 5) {
         const gyroMag = gyroHistory.map(g => Math.abs(g.a) + Math.abs(g.b) + Math.abs(g.c));
-        const gyroMean = gyroMag.reduce((a,b) => a+b, 0) / gyroMag.length;
-        features.gyroVariance = gyroMag.reduce((s,v) => s + Math.pow(v-gyroMean, 2), 0) / gyroMag.length;
+        const gyroMean = gyroMag.reduce((a, b) => a + b, 0) / gyroMag.length;
+        features.gyroVariance = gyroMag.reduce((s, v) => s + Math.pow(v - gyroMean, 2), 0) / gyroMag.length;
       }
 
       return features;
@@ -1159,10 +1180,10 @@
         scores['Public Transport'] += 0.12;
       }
 
-      const total = Object.values(scores).reduce((a,b) => a+b, 0) || 1;
+      const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
       Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
 
-      const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
+      const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
       const winner = sorted[0];
       const runnerUp = sorted[1] || ['', 0];
 
@@ -1178,6 +1199,11 @@
     },
 
     update(magHistory, gyroHistory, gpsData) {
+      // DNR check at the beginning
+      if (state.dnr) {
+        return { key: state.currentActivity || 'Stationary', confidence: state.confidence || 50, quality: 'Low' };
+      }
+
       const features = this.extractFeatures(magHistory, gyroHistory, gpsData);
       if (!features) return { key: state.currentActivity || 'Stationary', confidence: 50, quality: 'Low' };
 
@@ -1206,7 +1232,7 @@
   };
 
   // ============================================================
-  // IMPROVED STEP ENGINE - Independent of activity classifier
+  // IMPROVED STEP ENGINE - With peak prominence
   // ============================================================
   const ImprovedStepEngine = {
     _buffer: [],
@@ -1216,19 +1242,23 @@
     _stepCount: 0,
     _cadence: 0,
     _confidence: 0,
+    _peakBuffer: [],
 
     updateBaseline(mag) {
       this._buffer.push(mag);
       if (this._buffer.length > 100) this._buffer.shift();
       if (this._buffer.length > 20) {
-        const sorted = [...this._buffer].sort((a,b) => a-b);
-        this._baseline = sorted[Math.floor(sorted.length/2)];
-        const noise = this._buffer.reduce((s,v) => s + Math.pow(v - this._baseline, 2), 0) / this._buffer.length;
+        const sorted = [...this._buffer].sort((a, b) => a - b);
+        this._baseline = sorted[Math.floor(sorted.length / 2)];
+        const noise = this._buffer.reduce((s, v) => s + Math.pow(v - this._baseline, 2), 0) / this._buffer.length;
         this._threshold = Math.max(0.06, Math.min(0.25, Math.sqrt(noise) * 3));
       }
     },
 
     detectStep(mag, timestamp) {
+      // DNR check
+      if (state.dnr) return null;
+
       this.updateBaseline(mag);
       const deviation = Math.abs(mag - this._baseline);
       const history = this._buffer;
@@ -1238,8 +1268,15 @@
       const isValley = mag < history[idx-1] && mag < history[idx-2];
       const isPeak = mag > history[idx-1] && mag > history[idx-2];
 
-      // Detect on valley (trough) for more reliable step detection
-      if ((isValley || isPeak) && deviation > this._threshold) {
+      // Calculate peak prominence
+      let prominence = 0;
+      if (isPeak || isValley) {
+        const neighbors = history.slice(-6);
+        const meanNeighbor = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
+        prominence = Math.abs(mag - meanNeighbor);
+      }
+
+      if ((isValley || isPeak) && deviation > this._threshold && prominence > this._threshold * 0.7) {
         const timeSinceLast = timestamp - this._lastStepTime;
         if (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
             timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX) {
@@ -1249,7 +1286,6 @@
           const cadence = Math.round(60 / (timeSinceLast / 1000));
           this._cadence = cadence;
 
-          // Store step time for cadence calculation
           state._stepTimes.push(timestamp);
           if (state._stepTimes.length > 100) state._stepTimes.shift();
 
@@ -1257,7 +1293,6 @@
         }
       }
 
-      // Decrease confidence slowly when no steps
       this._confidence = Math.max(0, this._confidence - 0.5);
       return null;
     },
@@ -1280,7 +1315,7 @@
   };
 
   // ============================================================
-  // SESSION ENGINE - Fixed with proper state management
+  // SESSION ENGINE
   // ============================================================
   const SessionEngine = {
     _currentSession: null,
@@ -1288,6 +1323,7 @@
     _dailySummary: null,
 
     startSession(activity) {
+      if (state.dnr) return null;
       this._currentSession = {
         id: Date.now(),
         startTime: Date.now(),
@@ -1311,7 +1347,7 @@
     },
 
     endSession() {
-      if (!this._currentSession) return null;
+      if (!this._currentSession || state.dnr) return null;
       this._currentSession.endTime = Date.now();
       this._currentSession.duration = this._currentSession.endTime - this._currentSession.startTime;
       this._currentSession.steps = state.steps - this._currentSession.startSteps;
@@ -1322,7 +1358,9 @@
         return null;
       }
       this._sessions.push(this._currentSession);
-      StorageEngine.add('sessions', this._currentSession).catch(() => {});
+      if (!state.dnr) {
+        StorageEngine.add('sessions', this._currentSession).catch(() => {});
+      }
       const session = this._currentSession;
       this._currentSession = null;
       state._currentSession = null;
@@ -1330,9 +1368,7 @@
     },
 
     updateSession(activity, steps, speed, confidence) {
-      if (!this._currentSession) {
-        this.startSession(activity);
-      }
+      if (state.dnr || !this._currentSession) return;
       const session = this._currentSession;
       if (session.activity !== activity && state.steps - session.startSteps > 5) {
         this.endSession();
@@ -1344,7 +1380,7 @@
       session.maxSpeed = Math.max(session.maxSpeed, speed || 0);
       if (speed) {
         const count = (session._speedCount || 0) + 1;
-        session.avgSpeed = ((session.avgSpeed || 0) * (count-1) + speed) / count;
+        session.avgSpeed = ((session.avgSpeed || 0) * (count - 1) + speed) / count;
         session._speedCount = count;
       }
       state._currentSession = session;
@@ -1394,8 +1430,8 @@
         return {
           weekStart: weekStart,
           dailyTotals: dailyTotals,
-          totalSteps: Object.values(dailyTotals).reduce((s,d) => s + d.steps, 0),
-          totalDistance: Object.values(dailyTotals).reduce((s,d) => s + d.distance, 0)
+          totalSteps: Object.values(dailyTotals).reduce((s, d) => s + d.steps, 0),
+          totalDistance: Object.values(dailyTotals).reduce((s, d) => s + d.distance, 0)
         };
       } catch (e) { return null; }
     },
@@ -1405,7 +1441,7 @@
   };
 
   // ============================================================
-  // DISTANCE TRACKER - With GPS jump filtering
+  // DISTANCE TRACKER
   // ============================================================
   const DistanceTracker = {
     _lastPosition: null,
@@ -1413,6 +1449,7 @@
     _activityDistances: {},
 
     updatePosition(lat, lon, speed, accuracy) {
+      if (state.dnr) return;
       if (accuracy && accuracy > CONFIG.GPS_ACCURACY_THRESHOLD) return;
       const now = Date.now();
       const position = { lat, lon, speed, accuracy, timestamp: now };
@@ -1449,6 +1486,7 @@
     _dismissed: {},
 
     async analyze() {
+      if (state.dnr) return [];
       const suggestions = [];
       const activityPattern = await this.detectActivityPatterns();
       if (activityPattern) {
@@ -1475,7 +1513,7 @@
         if (progress > 80 && progress < 100) {
           suggestions.push({
             type: 'step_goal_near',
-            title: `You're ${Math.round(100-progress)}% away from your step goal!`,
+            title: `You're ${Math.round(100 - progress)}% away from your step goal!`,
             action: 'Walk now',
             data: { goal: goal, current: todaySummary.totalSteps }
           });
@@ -1552,20 +1590,26 @@
     calculateBaseline(samples) {
       if (samples.length < 10) { showToast('Calibration failed - insufficient samples'); return null; }
       const mean = samples.reduce((acc, s) => { acc.x += s.x; acc.y += s.y; acc.z += s.z; return acc; }, { x: 0, y: 0, z: 0 });
-      mean.x /= samples.length; mean.y /= samples.length; mean.z /= samples.length;
-      const gravity = Math.sqrt(mean.x*mean.x + mean.y*mean.y + mean.z*mean.z);
+      mean.x /= samples.length;
+      mean.y /= samples.length;
+      mean.z /= samples.length;
+      const gravity = Math.sqrt(mean.x * mean.x + mean.y * mean.y + mean.z * mean.z);
       const variance = samples.reduce((acc, s) => {
         acc.x += Math.pow(s.x - mean.x, 2);
         acc.y += Math.pow(s.y - mean.y, 2);
         acc.z += Math.pow(s.z - mean.z, 2);
         return acc;
       }, { x: 0, y: 0, z: 0 });
-      variance.x /= samples.length; variance.y /= samples.length; variance.z /= samples.length;
+      variance.x /= samples.length;
+      variance.y /= samples.length;
+      variance.z /= samples.length;
       const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
       this._baseline = { gravity, noiseFloor: noise, offset: { x: mean.x, y: mean.y, z: mean.z } };
       this._calibrated = true;
       this.updateThresholds();
       showToast('Calibration complete!');
+      // Store in IndexedDB
+      StorageEngine.put('preferences', { id: 'calibration', ...this._baseline, calibrated: true }).catch(() => {});
       return this._baseline;
     },
 
@@ -1582,13 +1626,14 @@
       this._baseline = { gravity: 9.81, noiseFloor: 0.02, offset: { x: 0, y: 0, z: 0 } };
       CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = 0.06;
       CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.04;
+      StorageEngine.delete('preferences', 'calibration').catch(() => {});
     },
 
     getBaseline() { return this._baseline; }
   };
 
   // ============================================================
-  // STORAGE ENGINE - With put/update support
+  // STORAGE ENGINE
   // ============================================================
   const StorageEngine = {
     _db: null,
@@ -1634,7 +1679,6 @@
       });
     },
 
-    // FIXED: put/update method for automations
     put(store, data) {
       if (!this._memFallback && this._db) {
         return new Promise((resolve, reject) => {
@@ -1723,15 +1767,18 @@
 
   function nowLabel() {
     const d = new Date();
-    let h = d.getHours(), m = d.getMinutes();
+    let h = d.getHours(),
+      m = d.getMinutes();
     const ap = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
   }
 
   function haversine(lat1, lon1, lat2, lon2) {
-    const R = 6371000, toRad = x => x * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const R = 6371000,
+      toRad = x => x * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1),
+      dLon = toRad(lon2 - lon1);
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
@@ -1740,26 +1787,31 @@
   // NAVIGATION
   // ============================================================
   document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+        b.removeAttribute('aria-current');
+      });
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      btn.classList.add('active');
-      const target = btn.getAttribute('data-target');
+      this.classList.add('active');
+      this.setAttribute('aria-selected', 'true');
+      this.setAttribute('aria-current', 'page');
+      const target = this.getAttribute('data-target');
       $(target).classList.add('active');
     });
   });
 
   // ============================================================
-  // SENSOR MANAGER
+  // SENSOR MANAGER - Split permissions
   // ============================================================
-  function initSensors() {
-    state.isLive = true;
-    $('gate').classList.add('hidden');
-    SoundEngine.init();
+  function enableMotionSensors() {
+    if (state._motionEnabled) {
+      showToast('Motion sensors already enabled');
+      return;
+    }
 
-    NotificationSystem.requestPermission().then(() => {
-      NotificationSystem.setEnabled(document.getElementById('toggleNotifications').checked);
-    });
+    state._motionEnabled = true;
 
     if ('DeviceMotionEvent' in window) {
       if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -1779,30 +1831,24 @@
       });
     }
 
-    if ('getBattery' in navigator) {
-      navigator.getBattery().then(batt => {
-        state.battery.available = true;
-        const updateBatt = () => {
-          state.battery.level = Math.round(batt.level * 100);
-          state.battery.charging = batt.charging;
-          if (state.battery.level < 20 && !state.battery.charging) triggerAutomation('BatteryLow');
-          if (batt.charging) triggerAutomation('ChargingStart');
-        };
-        updateBatt();
-        batt.addEventListener('levelchange', updateBatt);
-        batt.addEventListener('chargingchange', updateBatt);
-      }).catch(() => state.battery.available = false);
+    SoundEngine.init();
+    $('gate').classList.add('hidden');
+    state.isLive = true;
+
+    if (!state._locationEnabled) {
+      showToast('Motion sensors enabled. Enable location for distance tracking.');
     }
 
-    if ('connection' in navigator) {
-      state.network.available = true;
-      const updateNet = () => {
-        state.network.type = navigator.connection.effectiveType || 'wifi';
-        state.network.rtt = navigator.connection.rtt || 50;
-      };
-      updateNet();
-      navigator.connection.addEventListener('change', updateNet);
+    startEngine();
+  }
+
+  function enableLocationSensors() {
+    if (state._locationEnabled) {
+      showToast('Location already enabled');
+      return;
     }
+
+    state._locationEnabled = true;
 
     if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition(
@@ -1817,7 +1863,7 @@
             DistanceTracker.updatePosition(pos.coords.latitude, pos.coords.longitude, state.speed, pos.coords.accuracy);
           }
 
-          // Place detection with transition tracking
+          // Place detection
           if (state.places.home && pos.coords) {
             const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
             if (d < CONFIG.PLACE_RADIUS && !state._wasHome) {
@@ -1843,21 +1889,17 @@
         () => { state.speed = 0; },
         { enableHighAccuracy: true }
       );
+      showToast('Location enabled. GPS accuracy improves outdoors.');
+    } else {
+      showToast('Geolocation not supported in this browser');
     }
-
-    if ('AmbientLightSensor' in window) {
-      try {
-        const sensor = new AmbientLightSensor();
-        sensor.onreading = () => { state.light.val = sensor.illuminance + ' lux'; state.light.available = true; };
-        sensor.start();
-      } catch (e) { state.light.available = false; }
-    }
-
-    startEngine();
   }
 
   function listenMotion() {
     window.addEventListener('devicemotion', e => {
+      // DNR check at the beginning of sensor callback
+      if (state.dnr) return;
+
       if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') return;
       const acc = e.accelerationIncludingGravity || e.acceleration;
       if (!acc || acc.x === null) return;
@@ -1911,12 +1953,23 @@
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') act = state.overrideMode;
 
     switch (act) {
-      case 'Walking': baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1; break;
-      case 'Running': baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15; break;
-      case 'Vehicle': baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04; break;
-      case 'Cycling': baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05; break;
-      case 'Public Transport': baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08; break;
-      default: baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
+      case 'Walking':
+        baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1;
+        break;
+      case 'Running':
+        baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15;
+        break;
+      case 'Vehicle':
+        baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04;
+        break;
+      case 'Cycling':
+        baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05;
+        break;
+      case 'Public Transport':
+        baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08;
+        break;
+      default:
+        baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
     }
 
     state.accel.x = Math.sin(time) * 0.5;
@@ -1925,24 +1978,35 @@
     state.accel.mag = baseMag;
 
     switch (act) {
-      case 'Vehicle': state.speed = 45 + Math.random() * 20; break;
-      case 'Cycling': state.speed = 18 + Math.random() * 8; break;
-      case 'Running': state.speed = 9 + Math.random() * 3; break;
-      case 'Walking': state.speed = 4 + Math.random() * 2; break;
-      case 'Public Transport': state.speed = 25 + Math.random() * 10; break;
-      default: state.speed = 0;
+      case 'Vehicle':
+        state.speed = 45 + Math.random() * 20;
+        break;
+      case 'Cycling':
+        state.speed = 18 + Math.random() * 8;
+        break;
+      case 'Running':
+        state.speed = 9 + Math.random() * 3;
+        break;
+      case 'Walking':
+        state.speed = 4 + Math.random() * 2;
+        break;
+      case 'Public Transport':
+        state.speed = 25 + Math.random() * 10;
+        break;
+      default:
+        state.speed = 0;
     }
 
     processAccel(baseMag);
   }
 
   // ============================================================
-  // SIGNAL PROCESSING ENGINE - Fixed circular dependency
+  // SIGNAL PROCESSING ENGINE
   // ============================================================
   function processAccel(mag) {
+    // DNR check already done at sensor callback level
     state.accel.history.push(mag);
     if (state.accel.history.length > CONFIG.MAX_HISTORY) state.accel.history.shift();
-    if (state.dnr) return;
 
     const variance = getVariance(state.accel.history.slice(-30));
 
@@ -1959,25 +2023,29 @@
     // Gesture Recording
     if (state.recordingGesture) state.recordedSamples.push(mag);
 
-    // Fall Detection
+    // Fall Detection - Multi-signal
     if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
       state.fallTriggered = true;
       SoundEngine.playFall();
       VibrationEngine.fallWarning();
       NotificationSystem.showFallAlert();
+
+      // Multi-signal fall verification
       setTimeout(() => {
         const recent = state.accel.history.slice(-10);
         const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
-        if (Math.abs(avgRest - 1.0) < 0.2) {
+        const orientationChanged = Math.abs(state.orientation.beta) > 30 || Math.abs(state.orientation.gamma) > 30;
+
+        if (Math.abs(avgRest - 1.0) < 0.2 && orientationChanged) {
           $('fallModal').classList.add('show');
           triggerAutomation('Fall');
-          addTimelineEvent('⚠️ Fall detected', 'Impact followed by stillness');
+          addTimelineEvent('⚠️ Fall detected', 'Impact followed by stillness and orientation change');
         }
         state.fallTriggered = false;
       }, 1200);
     }
 
-    // Step Detection - Independent of activity
+    // Step Detection
     const stepResult = ImprovedStepEngine.detectStep(mag, Date.now());
     if (stepResult) {
       state.steps++;
@@ -1985,7 +2053,6 @@
       if (state.currentActivity === 'Running') SoundEngine.playRunStep();
       else if (state.currentActivity === 'Walking') SoundEngine.playStep();
 
-      // Check step goal
       const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
       if (state.steps >= goal && !state._goalReached) {
         state._goalReached = true;
@@ -1995,7 +2062,7 @@
       }
     }
 
-    // Activity Classification - Uses stepFrequency from _stepTimes
+    // Activity Classification
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
       setActivity(state.overrideMode, 99);
       return;
@@ -2019,6 +2086,7 @@
   }
 
   function setActivity(newAct, conf) {
+    // DNR check
     if (state.dnr) return;
 
     const now = Date.now();
@@ -2048,7 +2116,6 @@
       renderDurationDisplay();
       detectPatterns();
 
-      // End session and start new one
       SessionEngine.endSession();
       SessionEngine.startSession(newAct);
 
@@ -2058,26 +2125,45 @@
       }
     }
 
-    // Update session
     SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
-
     renderDailySummary();
     renderDurationDisplay();
 
-    // Update session count display
     const sessionCount = $('sessionCountDisplay');
     if (sessionCount) sessionCount.textContent = SessionEngine._sessions.length;
+  }
+
+  // ============================================================
+  // XSS-SAFE RENDER FUNCTIONS
+  // ============================================================
+  function safeRenderList(container, items, template) {
+    if (!container) return '';
+    if (!items || items.length === 0) {
+      container.innerHTML = `<div class="empty-note">No items to display.</div>`;
+      return '';
+    }
+    const html = items.map((item, index) => {
+      // Escape all user-provided values
+      const safeItem = {};
+      for (const [key, value] of Object.entries(item)) {
+        safeItem[key] = typeof value === 'string' ? escapeHtml(value) : value;
+      }
+      return template(safeItem, index);
+    }).join('');
+    container.innerHTML = html;
+    return html;
   }
 
   // ============================================================
   // PATTERN DETECTION
   // ============================================================
   function detectPatterns() {
-    const events = state.timeline.filter(t => t.label.includes('Activity changed'));
+    const events = state.timeline.filter(t => t.label && t.label.includes('Activity changed'));
     const patterns = {};
     events.forEach(e => {
-      const hour = e.time.split(':')[0];
-      const act = e.label.replace('Activity changed to ', '');
+      const hour = e.time ? e.time.split(':')[0] : '0';
+      const act = e.label ? e.label.replace('Activity changed to ', '') : '';
+      if (!act) return;
       const key = `${act}@${hour}`;
       patterns[key] = (patterns[key] || 0) + 1;
     });
@@ -2085,22 +2171,23 @@
     const suggestionArea = $('suggestionArea');
     if (!suggestionArea) return;
 
-    Object.entries(patterns).forEach(([key, count]) => {
+    for (const [key, count] of Object.entries(patterns)) {
       if (count >= 3 && !state._suggested[key]) {
         state._suggested[key] = true;
         const [act, hour] = key.split('@');
         suggestionArea.innerHTML = `
           <div class="suggestion-box">
             <div class="suggest-label" style="color:var(--violet)">Pattern Detected</div>
-            <div class="suggest-text">You frequently start ${act} around ${hour}:00 (${count} times). Create an automation?</div>
+            <div class="suggest-text">You frequently start ${escapeHtml(act)} around ${escapeHtml(hour)}:00 (${count} times). Create an automation?</div>
             <div class="suggest-actions">
-              <button class="btn-secondary" onclick="window.createAutomationFromPattern('${act}', '${hour}')">Create</button>
+              <button class="btn-secondary" onclick="window.createAutomationFromPattern('${escapeHtml(act)}', '${escapeHtml(hour)}')">Create</button>
               <button class="btn-secondary" onclick="document.getElementById('suggestionArea').innerHTML='<div class=\'empty-note\'>Suggestion dismissed.</div>'">Dismiss</button>
             </div>
           </div>
         `;
+        break;
       }
-    });
+    }
   }
 
   window.createAutomationFromPattern = function(act, hour) {
@@ -2129,7 +2216,10 @@
   function addTimelineEvent(label, detail) {
     if (state.dnr) return;
     const timeStr = nowLabel();
-    state.timeline.unshift({ label, detail, time: timeStr });
+    // Escape user data
+    const safeLabel = escapeHtml(label);
+    const safeDetail = escapeHtml(detail || '');
+    state.timeline.unshift({ label: safeLabel, detail: safeDetail, time: timeStr });
     if (state.timeline.length > 25) state.timeline.pop();
     renderTimeline();
   }
@@ -2141,19 +2231,27 @@
       container.innerHTML = `<div class="tl-empty">No events detected yet — start moving.</div>`;
       return;
     }
-    container.innerHTML = state.timeline.map((item, idx) => `
-      <div class="tl-item" onclick="this.querySelector('.tl-detail').classList.toggle('open')">
+    safeRenderList(container, state.timeline, (item, idx) => `
+      <div class="tl-item" role="button" tabindex="0" data-idx="${idx}" 
+           onkeydown="if(event.key==='Enter'||event.key===' ')this.querySelector('.tl-detail').classList.toggle('open')">
         <div class="tl-time">${item.time}</div>
         <div class="tl-label">${item.label}</div>
         <div class="tl-detail">${item.detail}</div>
       </div>
-    `).join('');
+    `);
+    // Add click/keyboard handlers
+    container.querySelectorAll('.tl-item').forEach(el => {
+      el.addEventListener('click', function() {
+        this.querySelector('.tl-detail').classList.toggle('open');
+      });
+    });
   }
 
   // ============================================================
-  // AUTOMATION ENGINE - Fixed persistence
+  // AUTOMATION ENGINE - XSS Safe
   // ============================================================
   function triggerAutomation(triggerType) {
+    if (state.dnr) return;
     const now = Date.now();
     state.automations.forEach(rule => {
       if (!rule.active || rule.when !== triggerType) return;
@@ -2173,26 +2271,28 @@
   }
 
   function executeAction(rule) {
-    state.automationHistory.unshift({ name: rule.name, time: nowLabel() });
+    if (state.dnr) return;
+    const safeName = escapeHtml(rule.name);
+    const safeWhen = escapeHtml(rule.when);
+    state.automationHistory.unshift({ name: safeName, time: nowLabel() });
     if (state.automationHistory.length > 20) state.automationHistory.pop();
     renderAutomationHistory();
 
     if (rule.then === 'notify') {
-      showToast(`⚡ ${rule.name}: Triggered!`);
-      addTimelineEvent(`⚡ ${rule.name}`, 'Automation notification');
-      NotificationSystem.show(`⚡ ${rule.name}`, `Automation triggered: ${rule.when}`);
+      showToast(`⚡ ${safeName}: Triggered!`);
+      addTimelineEvent(`⚡ ${safeName}`, 'Automation notification');
+      NotificationSystem.show(`⚡ ${safeName}`, `Automation triggered: ${safeWhen}`);
     } else if (rule.then === 'mode') {
       state.mode = 'REST';
       $('currentModeVal').textContent = 'REST';
       showToast(`System Mode updated to REST by rule`);
-      addTimelineEvent(`Mode → REST`, `Automation: ${rule.name}`);
+      addTimelineEvent(`Mode → REST`, `Automation: ${safeName}`);
     } else if (rule.then === 'track') {
-      // FIXED: Actually start a session
       SessionEngine.startSession(state.currentActivity);
-      showToast(`Tracking session started for ${rule.name}`);
-      addTimelineEvent(`Tracking started`, rule.name);
+      showToast(`Tracking session started for ${safeName}`);
+      addTimelineEvent(`Tracking started`, safeName);
     } else if (rule.then === 'record') {
-      addTimelineEvent(`Rule Execution`, rule.name);
+      addTimelineEvent(`Rule Execution`, safeName);
     } else if (rule.then === 'sound') {
       SoundEngine.playStep();
       showToast(`🔊 Sound alert played`);
@@ -2216,14 +2316,14 @@
       return;
     }
 
-    list.innerHTML = state.automations.map(r => `
+    safeRenderList(list, state.automations, (r) => `
       <div class="rule">
         <div class="rule-head">
           <div>
             <div class="rule-text"><b>${r.name}</b></div>
             <div class="rule-when">WHEN <b>${r.when}</b></div>
             <div class="rule-when">THEN → <b>${r.then}</b></div>
-            ${r.condType !== 'none' ? `<div class="rule-when">IF → ${r.condType} ${r.condVal}</div>` : ''}
+            ${r.condType && r.condType !== 'none' ? `<div class="rule-when">IF → ${r.condType} ${escapeHtml(r.condVal)}</div>` : ''}
           </div>
           <label class="switch">
             <input type="checkbox" ${r.active ? 'checked' : ''} data-rule-id="${r.id}">
@@ -2235,14 +2335,13 @@
           <button class="chip-btn danger" data-rule-id="${r.id}" data-action="delete">Delete</button>
         </div>
       </div>
-    `).join('');
+    `);
 
     list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', () => {
         const r = state.automations.find(x => x.id === cb.dataset.ruleId);
         if (r) {
           r.active = cb.checked;
-          // FIXED: Use put instead of add
           StorageEngine.put('automations', r).catch(() => {});
           renderRules();
         }
@@ -2253,7 +2352,6 @@
       btn.addEventListener('click', () => {
         const id = btn.dataset.ruleId;
         state.automations = state.automations.filter(x => x.id !== id);
-        // FIXED: Actually delete from IndexedDB
         StorageEngine.delete('automations', id).catch(() => {});
         renderRules();
       });
@@ -2278,12 +2376,12 @@
       container.innerHTML = `<div class="empty-note">No automations have run yet.</div>`;
       return;
     }
-    container.innerHTML = state.automationHistory.slice(0, 10).map(h => `
+    safeRenderList(container, state.automationHistory, (h) => `
       <div class="status-row">
         <span class="status-key">${h.name}</span>
         <span class="status-val">${h.time}</span>
       </div>
-    `).join('');
+    `);
   }
 
   // ============================================================
@@ -2293,7 +2391,11 @@
     const data = state.automations.map(({ name, when, condType, condVal, then, cooldown, active }) =>
       ({ name, when, condType, condVal, then, cooldown, active })
     );
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({
+      format: 'sensormind-rules',
+      version: 1,
+      rules: data
+    }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -2307,9 +2409,19 @@
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const rules = JSON.parse(e.target.result);
+        const parsed = JSON.parse(e.target.result);
+        let rules = parsed.rules || parsed;
         if (!Array.isArray(rules)) throw new Error('Invalid format');
-        rules.forEach(r => {
+
+        // Validate each rule
+        const validRules = rules.filter(r => {
+          const validWhen = ['Walking', 'Running', 'Vehicle', 'Cycling', 'Stationary', 'Shake', 'Fall', 'BatteryLow', 'ChargingStart', 'Public Transport', 'StepGoal', 'ArriveHome', 'LeaveHome', 'ArriveWork', 'LeaveWork'];
+          const validThen = ['notify', 'track', 'record', 'mode', 'sound', 'vibrate', 'export'];
+          const validCond = ['none', 'battery', 'timeAfter', 'timeBefore', 'confidence'];
+          return r.name && validWhen.includes(r.when) && validThen.includes(r.then) && validCond.includes(r.condType || 'none');
+        });
+
+        validRules.forEach(r => {
           state.automations.push({
             ...r,
             id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
@@ -2317,7 +2429,7 @@
           });
         });
         renderRules();
-        showToast(`Imported ${rules.length} rules`);
+        showToast(`Imported ${validRules.length} valid rules`);
       } catch (err) {
         showToast('Invalid rules file');
       }
@@ -2359,18 +2471,14 @@
       StorageEngine.getAll('places'),
       StorageEngine.getAll('sessions'),
       StorageEngine.getAll('events'),
-      StorageEngine.getAll('activities')
-    ]).then(([automations, gestures, places, sessions, events, activities]) => {
+      StorageEngine.getAll('activities'),
+      StorageEngine.getAll('preferences')
+    ]).then(([automations, gestures, places, sessions, events, activities, preferences]) => {
       const data = {
         timestamp: new Date().toISOString(),
-        version: '3.1',
-        automations, gestures, places, sessions, events, activities,
-        calibration: CalibrationEngine.getBaseline(),
-        preferences: {
-          stepGoal: state.stepGoal,
-          batterySaver: state.batterySaver,
-          dnr: state.dnr
-        }
+        version: '3.2',
+        automations, gestures, places, sessions, events, activities, preferences,
+        calibration: CalibrationEngine.getBaseline()
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -2384,7 +2492,7 @@
   }
 
   // ============================================================
-  // GESTURE ENGINE
+  // GESTURE ENGINE - XSS Safe
   // ============================================================
   function renderGestures() {
     $('gestureCount').textContent = `${state.gestures.length} saved`;
@@ -2393,18 +2501,29 @@
       list.innerHTML = `<div class="empty-note">No gestures saved.</div>`;
       return;
     }
-    list.innerHTML = state.gestures.map(g => `
+    safeRenderList(list, state.gestures, (g) => `
       <div class="status-row">
         <span class="status-key">${g.name} (${g.samples || 0} pts)</span>
         <span class="status-val good">${g.action}</span>
       </div>
-    `).join('');
+    `);
   }
 
   // ============================================================
-  // UI RENDER LOOP
+  // UI RENDER LOOP - Throttled
   // ============================================================
+  let _uiRenderCounter = 0;
+
   function renderUI() {
+    _uiRenderCounter++;
+    // Throttle UI updates to reduce DOM churn
+    if (_uiRenderCounter % 5 !== 0 && _uiRenderCounter > 1) {
+      // Still render critical metrics every time
+      $('scopeVal').textContent = `${state.accel.mag.toFixed(2)} g`;
+      $('contextConf').textContent = `${Math.round(state.confidence)}% confidence`;
+      return;
+    }
+
     const emojis = { Stationary: '🪑', Walking: '🚶', Running: '🏃', Vehicle: '🚗', Cycling: '🚴', 'Public Transport': '🚌' };
     $('contextEmoji').textContent = emojis[state.currentActivity] || '🧭';
     $('contextName').textContent = state.currentActivity;
@@ -2428,6 +2547,7 @@
       <div><span>Step Cadence:</span><span>${ImprovedStepEngine._cadence} spm</span></div>
     `;
 
+    // Phone Status
     $('statusGrid').innerHTML = `
       <div class="status-row"><span class="status-key">Battery</span><span class="status-val ${state.battery.level < 20 ? 'warn' : 'good'}">${state.battery.available ? state.battery.level + '%' : 'N/A'}</span></div>
       <div class="status-row"><span class="status-key">Charging</span><span class="status-val">${state.battery.available ? (state.battery.charging ? 'Yes' : 'No') : 'N/A'}</span></div>
@@ -2443,7 +2563,7 @@
     const sensors = [
       { name: 'Accelerometer', active: state.isLive, val: `${fmt(state.accel.x, 2)}, ${fmt(state.accel.y, 2)}, ${fmt(state.accel.z, 2)}` },
       { name: 'Gyroscope', active: state.isLive, val: `${Math.round(state.gyro.a)}°/s` },
-      { name: 'Geolocation', active: state.speed > 0 || state.isLive, val: `${state.speed} km/h` },
+      { name: 'Geolocation', active: state._locationEnabled && (state.speed > 0 || state.isLive), val: state._locationEnabled ? `${state.speed} km/h` : 'Disabled' },
       { name: 'Battery Status', active: state.battery.available, val: `${state.battery.level}%` },
       { name: 'Network Info', active: state.network.available, val: state.network.type },
       { name: 'Ambient Light', active: state.light.available, val: state.light.val },
@@ -2472,7 +2592,7 @@
     }
     $('playMove').textContent = `${state.currentActivity} (${state.accel.mag.toFixed(2)}g)`;
 
-    // Activity Bars - FIXED: using duration instead of counts
+    // Activity Bars using durations
     const totalDuration = Object.values(state.activityDurations).reduce((a, b) => a + b, 1);
     const colors = { Stationary: 'var(--text-dim)', Walking: 'var(--amber)', Running: 'var(--red)', Vehicle: 'var(--teal)', Cycling: 'var(--violet)', 'Public Transport': 'var(--teal)' };
     $('activityBars').innerHTML = Object.entries(state.activityDurations).map(([act, dur]) => {
@@ -2501,7 +2621,7 @@
     $('statDistance').textContent = distanceKm.toFixed(1) + ' km';
     $('statSessions').textContent = SessionEngine._sessions.length;
 
-    const dominant = Object.keys(state.activityDurations).reduce((a, b) => 
+    const dominant = Object.keys(state.activityDurations).reduce((a, b) =>
       (state.activityDurations[a] || 0) > (state.activityDurations[b] || 0) ? a : b, 'Stationary');
     $('insightMovement').textContent = `Dominant activity: ${dominant}. ${state.steps} steps detected.`;
     $('insightTravel').textContent = state.speed > 0 ? `Moving at ${state.speed} km/h. Distance: ${distanceKm.toFixed(1)} km.` : `No significant travel logged yet.`;
@@ -2547,7 +2667,9 @@
         sessions: SessionEngine._sessions.length,
         stepTimes: state._stepTimes.length,
         calibrated: CalibrationEngine.isCalibrated(),
-        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb'
+        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb',
+        locationEnabled: state._locationEnabled,
+        dnr: state.dnr
       }, null, 2);
     }
 
@@ -2562,7 +2684,7 @@
     const top = Object.entries(state.activityDurations)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 2)
-      .map(([act, dur]) => `${act}: ${Math.round((dur/total)*100)}%`)
+      .map(([act, dur]) => `${act}: ${Math.round((dur / total) * 100)}%`)
       .join(' · ');
 
     const activeTime = Object.entries(state.activityDurations)
@@ -2595,7 +2717,7 @@
       .map(([act, secs]) => {
         const mins = Math.floor(secs / 60);
         const remaining = Math.floor(secs % 60);
-        return `<span class="duration-tag">${act}: ${mins}m ${remaining}s</span>`;
+        return `<span class="duration-tag">${escapeHtml(act)}: ${mins}m ${remaining}s</span>`;
       })
       .join(' ');
   }
@@ -2614,7 +2736,7 @@
     container.innerHTML = transitions.map(t => {
       const act = t.label.replace('Activity changed to ', '');
       const cls = act === 'Public Transport' ? 'Public' : act;
-      return `<span class="transition-dot ${cls}" title="${act}"></span>`;
+      return `<span class="transition-dot ${cls}" title="${escapeHtml(act)}"></span>`;
     }).join('');
   }
 
@@ -2673,12 +2795,15 @@
   // ============================================================
   function updateSoundUI() {
     const status = $('soundStatus');
+    const btn = $('soundToggleBtn');
     if (SoundEngine.enabled) {
       status.textContent = 'ON';
       status.className = 'status on';
+      btn.setAttribute('aria-pressed', 'true');
     } else {
       status.textContent = 'OFF';
       status.className = 'status off';
+      btn.setAttribute('aria-pressed', 'false');
     }
   }
 
@@ -2745,17 +2870,20 @@
     updateGoalProgress();
     updateSoundUI();
 
-    const savedCalibration = localStorage.getItem('sensormind_calibration');
-    if (savedCalibration) {
-      try {
-        const cal = JSON.parse(savedCalibration);
-        CalibrationEngine._calibrated = cal.calibrated;
-        if (cal.baseline) {
-          CalibrationEngine._baseline = cal.baseline;
-          CalibrationEngine.updateThresholds();
-        }
-      } catch (e) {}
-    }
+    // Load calibration from IndexedDB
+    StorageEngine.getAll('preferences').then(prefs => {
+      const cal = prefs.find(p => p.id === 'calibration');
+      if (cal && cal.calibrated) {
+        CalibrationEngine._calibrated = true;
+        CalibrationEngine._baseline = {
+          gravity: cal.gravity || 9.81,
+          noiseFloor: cal.noiseFloor || 0.02,
+          offset: cal.offset || { x: 0, y: 0, z: 0 }
+        };
+        CalibrationEngine.updateThresholds();
+        renderUI();
+      }
+    }).catch(() => {});
 
     setInterval(() => {
       if (state.batterySaver && state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD) {
@@ -2804,10 +2932,10 @@
             area.innerHTML = suggestions.map(s => `
               <div class="suggestion-box">
                 <div class="suggest-label" style="color:var(--violet)">💡 Suggestion</div>
-                <div class="suggest-text">${s.title}</div>
+                <div class="suggest-text">${escapeHtml(s.title)}</div>
                 <div class="suggest-actions">
-                  <button class="btn-secondary" onclick="window.acceptSuggestion('${s.type}')">${s.action}</button>
-                  <button class="btn-secondary" onclick="window.dismissSuggestion('${s.type}')">Dismiss</button>
+                  <button class="btn-secondary" onclick="window.acceptSuggestion('${escapeHtml(s.type)}')">${escapeHtml(s.action)}</button>
+                  <button class="btn-secondary" onclick="window.dismissSuggestion('${escapeHtml(s.type)}')">Dismiss</button>
                 </div>
               </div>
             `).join('');
@@ -2866,11 +2994,11 @@
     if (q.includes('doing') || q.includes('now')) {
       ans.textContent = `You are currently ${state.currentActivity} with ${Math.round(state.confidence)}% confidence. ${state.steps} steps detected.`;
     } else if (q.includes('active') || q.includes('today')) {
-      const dominant = Object.keys(state.activityDurations).reduce((a, b) => 
+      const dominant = Object.keys(state.activityDurations).reduce((a, b) =>
         (state.activityDurations[a] || 0) > (state.activityDurations[b] || 0) ? a : b, 'Stationary');
       ans.textContent = `Logged ${state.timeline.length} events. Dominant activity: ${dominant}. ${state.steps} steps. Distance: ${distanceKm.toFixed(1)} km.`;
     } else if (q.includes('sensors')) {
-      ans.textContent = `Accelerometer${state.isLive ? ' ✅' : ' ❌'}, Gyroscope ${state.isLive ? '✅' : '❌'}, Network ${state.network.available ? '✅' : '❌'}. (${state.isSim ? 'Simulated' : 'Hardware Direct'})`;
+      ans.textContent = `Motion sensors ${state._motionEnabled ? '✅' : '❌'}, Location ${state._locationEnabled ? '✅' : '❌'}, Notifications ${NotificationSystem._enabled ? '✅' : '❌'}. (${state.isSim ? 'Simulated' : 'Hardware Direct'})`;
     } else if (q.includes('automation')) {
       ans.textContent = `${state.automationHistory.length} automation executions logged this session. ${state.automations.filter(a => a.active).length} rules active.`;
     } else if (q.includes('battery')) {
@@ -2889,14 +3017,14 @@
       SessionEngine.getWeeklySummary().then(weekData => {
         if (weekData) {
           const days = Object.keys(weekData.dailyTotals).length;
-          ans.textContent = `Past ${days} days: ${weekData.totalSteps} steps, ${(weekData.totalDistance/1000).toFixed(1)} km.`;
+          ans.textContent = `Past ${days} days: ${weekData.totalSteps} steps, ${(weekData.totalDistance / 1000).toFixed(1)} km.`;
         } else {
           ans.textContent = 'Not enough data for weekly summary yet.';
         }
       });
       return;
     } else if (q.includes('far') || q.includes('distance')) {
-      ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(DistanceTracker.getActivityDistance('Walking')/1000).toFixed(1)} km, Running: ${(DistanceTracker.getActivityDistance('Running')/1000).toFixed(1)} km, Vehicle: ${(DistanceTracker.getActivityDistance('Vehicle')/1000).toFixed(1)} km.`;
+      ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(DistanceTracker.getActivityDistance('Walking') / 1000).toFixed(1)} km, Running: ${(DistanceTracker.getActivityDistance('Running') / 1000).toFixed(1)} km, Vehicle: ${(DistanceTracker.getActivityDistance('Vehicle') / 1000).toFixed(1)} km.`;
     } else if (q.includes('cadence')) {
       ans.textContent = `Your current step cadence is ${ImprovedStepEngine._cadence} steps per minute.`;
     } else {
@@ -2907,9 +3035,8 @@
   // ============================================================
   // EVENT BINDINGS
   // ============================================================
-  $('enableBtn').addEventListener('click', () => {
-    StorageEngine.init().then(() => initSensors());
-  });
+  $('enableMotionBtn').addEventListener('click', enableMotionSensors);
+  $('enableLocationBtn').addEventListener('click', enableLocationSensors);
 
   $('soundToggleBtn').addEventListener('click', toggleSound);
   $('toggleSound').addEventListener('change', (e) => {
@@ -2925,7 +3052,9 @@
 
   $('toggleNotifications').addEventListener('change', (e) => {
     NotificationSystem.setEnabled(e.target.checked);
-    if (e.target.checked) NotificationSystem.requestPermission();
+    if (e.target.checked) {
+      NotificationSystem.requestPermission();
+    }
     showToast(e.target.checked ? '🔔 Notifications ON' : '🔔 Notifications OFF');
   });
 
@@ -2938,8 +3067,8 @@
   });
   $('fallHelp').addEventListener('click', () => {
     $('fallModal').classList.remove('show');
-    showToast('Emergency response triggered (Simulated)');
-    addTimelineEvent('🚨 EMERGENCY', 'Fall assistance request issued.');
+    showToast('📞 Request Help (Demo) — Emergency contact not configured');
+    addTimelineEvent('🚨 EMERGENCY (Demo)', 'Fall assistance request issued');
   });
 
   ['modeNormal', 'modeRest', 'modeWalk'].forEach(id => {
@@ -2961,7 +3090,14 @@
     const cooldown = Number($('bCooldown').value) || 30;
     const rule = {
       id: Date.now().toString(),
-      name, when, condType, condVal, then, cooldown, lastRun: 0, active: true
+      name: name,
+      when: when,
+      condType: condType,
+      condVal: condVal,
+      then: then,
+      cooldown: cooldown,
+      lastRun: 0,
+      active: true
     };
     state.automations.push(rule);
     StorageEngine.add('automations', rule).catch(() => {});
@@ -2988,7 +3124,7 @@
   $('toggleDNR').addEventListener('change', e => {
     state.dnr = e.target.checked;
     $('dnrBanner').classList.toggle('show', state.dnr);
-    showToast(state.dnr ? 'Do Not Record enabled' : 'Logging resumed');
+    showToast(state.dnr ? 'Do Not Record enabled — sensor processing paused' : 'Do Not Record disabled — processing resumed');
   });
 
   $('toggleBatterySaver').addEventListener('change', e => {
@@ -2996,7 +3132,15 @@
     showToast(state.batterySaver ? 'Battery saver enabled' : 'Battery saver disabled');
   });
 
-  $('btnClearHistory').addEventListener('click', () => {
+  $('btnClearHistory').addEventListener('click', async () => {
+    // Clear persistent storage
+    await Promise.all([
+      StorageEngine.clear('sessions'),
+      StorageEngine.clear('events'),
+      StorageEngine.clear('activities'),
+      StorageEngine.clear('automation_history')
+    ]);
+    // Reset in-memory state
     state.timeline = [];
     state.automationHistory = [];
     state.activityDurations = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
@@ -3012,7 +3156,7 @@
     renderDurationDisplay();
     renderTransitionChart();
     updateGoalProgress();
-    showToast('Session data cleared');
+    showToast('All history cleared from memory and storage');
   });
 
   $('btnExportData').addEventListener('click', exportData);
@@ -3025,17 +3169,23 @@
         StorageEngine.clear('gestures');
         StorageEngine.clear('places');
         StorageEngine.clear('sessions');
-        localStorage.removeItem('sensormind_calibration');
+        StorageEngine.clear('events');
+        StorageEngine.clear('activities');
+        StorageEngine.clear('preferences');
         location.reload();
       }
     }
   });
 
   $('setHomeBtn').addEventListener('click', () => {
+    if (!state._locationEnabled) {
+      showToast('Enable location first to use this feature');
+      return;
+    }
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
         state.places.home = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        StorageEngine.add('places', { name: 'Home', lat: pos.coords.latitude, lon: pos.coords.longitude }).catch(() => {});
+        StorageEngine.put('places', { id: 'home', name: 'Home', lat: pos.coords.latitude, lon: pos.coords.longitude }).catch(() => {});
         renderPlaces();
         showToast('Home location saved');
       }, () => showToast('Could not get location'));
@@ -3043,10 +3193,14 @@
   });
 
   $('setWorkBtn').addEventListener('click', () => {
+    if (!state._locationEnabled) {
+      showToast('Enable location first to use this feature');
+      return;
+    }
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
         state.places.work = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        StorageEngine.add('places', { name: 'Work', lat: pos.coords.latitude, lon: pos.coords.longitude }).catch(() => {});
+        StorageEngine.put('places', { id: 'work', name: 'Work', lat: pos.coords.latitude, lon: pos.coords.longitude }).catch(() => {});
         renderPlaces();
         showToast('Work location saved');
       }, () => showToast('Could not get location'));
@@ -3070,14 +3224,12 @@
   $('calibrateBtn').addEventListener('click', async () => {
     const result = await CalibrationEngine.startCalibration();
     if (result) {
-      localStorage.setItem('sensormind_calibration', JSON.stringify({ calibrated: true, baseline: result }));
       renderUI();
     }
   });
 
   $('resetCalibrationBtn').addEventListener('click', () => {
     CalibrationEngine.reset();
-    localStorage.removeItem('sensormind_calibration');
     showToast('Calibration reset');
     renderUI();
   });
@@ -3197,6 +3349,13 @@
     if (!state.debug) $('debugRaw').textContent = 'Enable the toggle above to stream raw → fused → classified values each tick.';
   });
 
+  // Service Worker Registration (PWA)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('Service Worker registered'))
+      .catch(() => console.log('Service Worker registration failed'));
+  }
+
   // PWA Installation
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -3257,23 +3416,17 @@
   updateGoalProgress();
   updateSoundUI();
 
-  console.log('SensorMind v3.1 - All Critical Fixes Applied');
-  console.log('✅ P0: Activity/Step circular dependency fixed');
-  console.log('✅ P0: stepTimes properly maintained');
-  console.log('✅ P0: Session engine state duplication fixed');
-  console.log('✅ P0: Session step accounting fixed');
-  console.log('✅ P0: Activity percentages use duration');
-  console.log('✅ P0: Automation delete/update persistence fixed');
-  console.log('✅ P0: Gyroscope reporting fixed');
-  console.log('✅ P1: Accelerometer filtering applied');
-  console.log('✅ P1: Adaptive step detection');
-  console.log('✅ P1: Temporal activity smoothing');
-  console.log('✅ P1: GPS filtering');
-  console.log('✅ P2: Daily/weekly history');
-  console.log('✅ P2: Activity sessions');
-  console.log('✅ P2: Distance by activity');
-  console.log('✅ P2: Better insights');
-  console.log('✅ P3: Sensor replay support');
+  console.log('SensorMind v3.2 - Security & Robustness Update');
+  console.log('✅ XSS Protection');
+  console.log('✅ Split Permissions (Motion, Location, Notifications)');
+  console.log('✅ Do Not Record properly stops processing');
+  console.log('✅ Fall detection with multi-signal verification');
+  console.log('✅ Clear History clears persistent storage');
+  console.log('✅ Places use stable IDs with put()');
+  console.log('✅ UI rendering throttled (500ms update cycle)');
+  console.log('✅ Calibration stored in IndexedDB');
+  console.log('✅ Service Worker registered for PWA');
+  console.log('✅ Accessibility improvements');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
