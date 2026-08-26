@@ -330,21 +330,18 @@
   <div class="sim-banner" id="simBanner">SIMULATION MODE — values are generated, not real sensor readings</div>
   <div class="dnr-banner" id="dnrBanner">DO NOT RECORD IS ON — sensor-derived processing is paused</div>
 
-  <!-- Sound Toggle -->
   <div class="sound-toggle">
     <span class="label">🔊 Sound Effects</span>
     <span class="status on" id="soundStatus">ON</span>
     <button class="sound-btn" id="soundToggleBtn" aria-label="Toggle sound effects">🔇</button>
   </div>
 
-  <!-- Quick Mode Buttons -->
   <div class="mode-buttons">
     <button class="btn-secondary" id="modeNormal">Normal</button>
     <button class="btn-secondary" id="modeRest">Rest</button>
     <button class="btn-secondary" id="modeWalk">Walking</button>
   </div>
 
-  <!-- User Guide Card -->
   <div class="card" style="margin:8px 20px;">
     <div class="section-title" style="margin:0 0 4px;">📖 User Guide</div>
     <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">
@@ -392,19 +389,16 @@
     </div>
     </div>
 
-    <!-- Daily Summary Card -->
     <div class="card" style="margin:8px 20px 0;">
       <div class="section-title" style="margin:0 0 8px;">Today's Summary <small>persistent</small></div>
       <div class="status-grid" id="dailySummary"></div>
     </div>
 
-    <!-- Activity Duration -->
     <div class="card" style="margin:8px 20px 0;">
       <div class="section-title" style="margin:0 0 8px;">Activity Duration <small>this session</small></div>
       <div id="durationDisplay" style="font-size:12px;color:var(--text-dim);line-height:2;"></div>
     </div>
 
-    <!-- Goal Progress -->
     <div class="card" style="margin:8px 20px 0;">
       <div class="section-title" style="margin:0 0 8px;">Daily Step Goal</div>
       <div style="display:flex;justify-content:space-between;font-size:12px;">
@@ -414,7 +408,6 @@
       <div class="goal-progress"><div class="fill" id="goalFill" style="width:0%;"></div></div>
     </div>
 
-    <!-- Transition Chart -->
     <div class="card" style="margin:8px 20px 0;">
       <div class="section-title" style="margin:0 0 8px;">Activity Timeline</div>
       <div class="transition-chart" id="transitionChart"></div>
@@ -430,7 +423,7 @@
 
     <div class="section">
       <div class="section-title">My Day <small id="tlCount">0 events</small></div>
-      <div class="timeline" id="timeline"><div class="tl-empty">No events detected yet — start moving.</div></div>
+      <div id="timeline"><div class="tl-empty">No events detected yet — start moving.</div></div>
     </div>
   </div>
 
@@ -611,6 +604,7 @@
           </select>
         </div>
         <button class="btn-secondary" id="gestStart" style="width:100%;">Start Recording</button>
+        <button class="btn-secondary" id="gestCancel" style="width:100%;margin-top:6px;display:none;">Cancel Recording</button>
         <div class="mono" id="gestStatus" style="font-size:12px;color:var(--text-dim);margin-top:8px;">Not recording. Pattern-based gesture recognition — not machine learning.</div>
       </div>
       <div id="gestureList"></div>
@@ -624,9 +618,11 @@
             <option value="60">1 minute</option>
             <option value="300">5 minutes</option>
           </select>
+          <span style="font-size:10px;color:var(--text-dim);margin-left:8px;">Max: 5 min</span>
           <button class="btn-secondary" id="labStart">Start Recording</button>
+          <button class="btn-secondary" id="labCancel" style="display:none;">Cancel</button>
         </div>
-        <div class="mono" id="labStatus" style="font-size:12px;color:var(--text-dim);">Not recording.</div>
+        <div class="mono" id="labStatus" style="font-size:12px;color:var(--text-dim);">Not recording. Max duration: 5 minutes.</div>
         <div class="btn-row">
           <button class="chip-btn" id="labExportCsv">Export CSV</button>
           <button class="chip-btn" id="labExportJson">Export JSON</button>
@@ -772,7 +768,7 @@
   </nav>
 </div>
 
-<div id="toast">Alert</div>
+<div id="toast" role="status" aria-live="polite">Alert</div>
 
 <script>
 (() => {
@@ -805,7 +801,7 @@
     MAX_HISTORY: 60,
     TICK_INTERVAL: 100,
     SLOW_TICK_INTERVAL: 1500,
-    UI_UPDATE_INTERVAL: 500, // Reduced UI update frequency
+    UI_UPDATE_INTERVAL: 500,
     BATTERY_SAVER_THRESHOLD: 20,
     SIM_TIMEOUT: 3000,
     STEP_GOAL_DEFAULT: 10000,
@@ -814,18 +810,12 @@
     MIN_STEPS_PER_SESSION: 3,
     GPS_JUMP_MAX_KMH: 120,
     GPS_ACCURACY_THRESHOLD: 50,
-    PLACE_RADIUS: 150
+    PLACE_RADIUS: 150,
+    MAX_LAB_DURATION: 300,
+    MAX_IMPORT_RULES: 50,
+    MAX_RULE_NAME_LENGTH: 100,
+    MAX_GESTURE_NAME_LENGTH: 30
   };
-
-  // ============================================================
-  // XSS ESCAPE FUNCTION
-  // ============================================================
-  function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
 
   // ============================================================
   // STATE
@@ -890,8 +880,56 @@
     _lastGpsUpdate: 0,
     _gpsFilteredSpeed: 0,
     _locationEnabled: false,
-    _motionEnabled: false
+    _motionEnabled: false,
+    _labTimerId: null,
+    _labData: [],
+    _labRecording: false,
+    _gestureTimerId: null,
+    _listenerCleanup: []
   };
+
+  // ============================================================
+  // SAFE DOM UTILITIES - No innerHTML with user data
+  // ============================================================
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function createElement(tag, attrs, children) {
+    const el = document.createElement(tag);
+    if (attrs) {
+      for (const [key, value] of Object.entries(attrs)) {
+        if (key === 'className') el.className = value;
+        else if (key === 'textContent') el.textContent = value;
+        else if (key === 'innerHTML') el.innerHTML = value;
+        else el.setAttribute(key, value);
+      }
+    }
+    if (children) {
+      for (const child of children) {
+        if (typeof child === 'string') el.appendChild(document.createTextNode(child));
+        else el.appendChild(child);
+      }
+    }
+    return el;
+  }
+
+  function renderSafeList(container, items, renderFn) {
+    if (!container) return;
+    if (!items || items.length === 0) {
+      container.innerHTML = `<div class="empty-note">No items to display.</div>`;
+      return;
+    }
+    // Clear container and rebuild with DOM elements
+    container.innerHTML = '';
+    for (const item of items) {
+      const el = renderFn(item);
+      if (el) container.appendChild(el);
+    }
+  }
 
   // ============================================================
   // SOUND ENGINE
@@ -906,7 +944,6 @@
       try {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       } catch (e) {
-        console.warn('Web Audio not supported');
         this.ctx = null;
       }
     },
@@ -994,25 +1031,21 @@
   // ============================================================
   const VibrationEngine = {
     _enabled: true,
-
     isSupported() { return 'vibrate' in navigator; },
-
     vibrate(pattern) {
       if (!this._enabled || !this.isSupported()) return;
       try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
     },
-
     stepGoalReached() { this.vibrate([100, 50, 100, 50, 100]); },
     automationTriggered() { this.vibrate([50]); },
     fallWarning() { this.vibrate([100, 50, 100, 50, 100, 50, 200]); },
     gestureDetected() { this.vibrate([30, 30, 30]); },
     activityChanged() { this.vibrate([20]); },
-
     setEnabled(enabled) { this._enabled = enabled; }
   };
 
   // ============================================================
-  // NOTIFICATION SYSTEM - User-driven
+  // NOTIFICATION SYSTEM
   // ============================================================
   const NotificationSystem = {
     _permission: 'default',
@@ -1072,7 +1105,509 @@
   };
 
   // ============================================================
-  // IMPROVED ACTIVITY ENGINE
+  // ACTIVITY ENGINE (kept as-is, already robust)
+  // ============================================================
+  // ... [ActivityEngine, StepEngine, SessionEngine, DistanceTracker, etc.]
+  // These are preserved from the original but with minor fixes
+
+  // ============================================================
+  // STORAGE ENGINE
+  // ============================================================
+  const StorageEngine = {
+    _db: null,
+    _memFallback: true,
+    _memStore: {},
+
+    init() {
+      return new Promise((resolve) => {
+        if (!('indexedDB' in window)) { this._memFallback = true; resolve(false); return; }
+        try {
+          const req = indexedDB.open('sensormind_db', 4);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities'].forEach(s => {
+              if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
+            });
+          };
+          req.onsuccess = (e) => { this._db = e.target.result; this._memFallback = false; resolve(true); };
+          req.onerror = () => { this._memFallback = true; resolve(false); };
+        } catch (e) { this._memFallback = true; resolve(false); }
+      });
+    },
+
+    _getStore(store) { if (!this._memStore[store]) this._memStore[store] = []; return this._memStore[store]; },
+    _nextId() { return Date.now() + '_' + Math.random().toString(36).substr(2, 6); },
+
+    add(store, data) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).add(data);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        const items = this._getStore(store);
+        const record = { ...data, id: this._nextId() };
+        items.push(record);
+        resolve(record.id);
+      });
+    },
+
+    put(store, data) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).put(data);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        const items = this._getStore(store);
+        const idx = items.findIndex(i => i.id === data.id);
+        if (idx >= 0) { items[idx] = data; } else { items.push(data); }
+        resolve(data.id);
+      });
+    },
+
+    getAll(store) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readonly');
+            const req = tx.objectStore(store).getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => { resolve(this._getStore(store)); });
+    },
+
+    delete(store, id) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).delete(id);
+            req.onsuccess = () => resolve(true);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => {
+        const items = this._getStore(store);
+        const idx = items.findIndex(i => i.id === id);
+        if (idx >= 0) items.splice(idx, 1);
+        resolve(true);
+      });
+    },
+
+    clear(store) {
+      if (!this._memFallback && this._db) {
+        return new Promise((resolve, reject) => {
+          try {
+            const tx = this._db.transaction(store, 'readwrite');
+            const req = tx.objectStore(store).clear();
+            req.onsuccess = () => resolve(true);
+            req.onerror = () => reject(req.error);
+          } catch (e) { reject(e); }
+        });
+      }
+      return new Promise((resolve) => { if (this._memStore[store]) this._memStore[store] = []; resolve(true); });
+    },
+
+    isMemFallback() { return this._memFallback; }
+  };
+
+  // ============================================================
+  // UTILITY FUNCTIONS
+  // ============================================================
+  const $ = id => document.getElementById(id);
+
+  function showToast(msg) {
+    const toast = $('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function fmt(n, d) { return (n === null || n === undefined || isNaN(n)) ? '–' : n.toFixed(d); }
+
+  function nowLabel() {
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
+  }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000, toRad = x => x * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ============================================================
+  // UI HELPERS (XSS-safe render functions)
+  // ============================================================
+  function renderTimelineItem(item) {
+    const div = createElement('div', { className: 'tl-item', role: 'button', tabindex: '0' });
+    const time = createElement('div', { className: 'tl-time', textContent: item.time });
+    const label = createElement('div', { className: 'tl-label', textContent: item.label });
+    const detail = createElement('div', { className: 'tl-detail', textContent: item.detail || 'No further detail' });
+    div.appendChild(time);
+    div.appendChild(label);
+    div.appendChild(detail);
+    div.addEventListener('click', function() {
+      this.querySelector('.tl-detail').classList.toggle('open');
+    });
+    div.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.querySelector('.tl-detail').classList.toggle('open');
+      }
+    });
+    return div;
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+        b.removeAttribute('aria-current');
+      });
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      this.classList.add('active');
+      this.setAttribute('aria-selected', 'true');
+      this.setAttribute('aria-current', 'page');
+      const target = this.getAttribute('data-target');
+      $(target).classList.add('active');
+    });
+  });
+
+  // ============================================================
+  // SENSOR MANAGER
+  // ============================================================
+  function enableMotionSensors() {
+    if (state._motionEnabled) { showToast('Motion sensors already enabled'); return; }
+    state._motionEnabled = true;
+
+    if ('DeviceMotionEvent' in window) {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission()
+          .then(res => { if (res === 'granted') listenMotion(); else enableSimMode('Motion permission denied'); })
+          .catch(() => enableSimMode('Motion access error'));
+      } else {
+        listenMotion();
+      }
+    } else {
+      enableSimMode('DeviceMotionEvent unsupported');
+    }
+
+    if ('DeviceOrientationEvent' in window) {
+      const handler = e => {
+        state.orientation = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
+      };
+      window.addEventListener('deviceorientation', handler);
+      state._listenerCleanup.push(() => window.removeEventListener('deviceorientation', handler));
+    }
+
+    SoundEngine.init();
+    $('gate').classList.add('hidden');
+    state.isLive = true;
+
+    if (!state._locationEnabled) {
+      showToast('Motion sensors enabled. Enable location for distance tracking.');
+    }
+
+    startEngine();
+  }
+
+  function enableLocationSensors() {
+    if (state._locationEnabled) { showToast('Location already enabled'); return; }
+    state._locationEnabled = true;
+
+    if ('geolocation' in navigator) {
+      const watchId = navigator.geolocation.watchPosition(
+        pos => {
+          state.speed = Math.round((pos.coords.speed || 0) * 3.6);
+          state.sensorHealth.gps.quality = 0.85;
+          state.sensorHealth.gps.lastUpdate = Date.now();
+          state.sensorHealth.gps.stale = false;
+          state._lastGpsUpdate = Date.now();
+
+          if (pos.coords.latitude && pos.coords.longitude) {
+            DistanceTracker.updatePosition(pos.coords.latitude, pos.coords.longitude, state.speed, pos.coords.accuracy);
+          }
+
+          if (state.places.home && pos.coords) {
+            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
+            if (d < CONFIG.PLACE_RADIUS && !state._wasHome) {
+              triggerAutomation('ArriveHome');
+              state._wasHome = true;
+            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasHome) {
+              triggerAutomation('LeaveHome');
+              state._wasHome = false;
+            }
+          }
+
+          if (state.places.work && pos.coords) {
+            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.work.lat, state.places.work.lon);
+            if (d < CONFIG.PLACE_RADIUS && !state._wasWork) {
+              triggerAutomation('ArriveWork');
+              state._wasWork = true;
+            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasWork) {
+              triggerAutomation('LeaveWork');
+              state._wasWork = false;
+            }
+          }
+        },
+        () => { state.speed = 0; },
+        { enableHighAccuracy: true }
+      );
+      state._listenerCleanup.push(() => navigator.geolocation.clearWatch(watchId));
+      showToast('Location enabled. GPS accuracy improves outdoors.');
+    } else {
+      showToast('Geolocation not supported in this browser');
+    }
+  }
+
+  function listenMotion() {
+    const handler = e => {
+      if (state.dnr) return;
+      if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') return;
+      const acc = e.accelerationIncludingGravity || e.acceleration;
+      if (!acc || acc.x === null) return;
+
+      state._realSensorsActive = true;
+      state.sensorHealth.accel.quality = 0.92;
+      state.sensorHealth.accel.lastUpdate = Date.now();
+      state.sensorHealth.accel.stale = false;
+
+      const x = acc.x || 0;
+      const y = acc.y || 0;
+      const z = acc.z || 0;
+      const mag = Math.sqrt(x * x + y * y + z * z) / 9.81;
+
+      state.accel.x = x;
+      state.accel.y = y;
+      state.accel.z = z;
+      state.accel.mag = mag;
+
+      const rr = e.rotationRate;
+      if (rr && rr.alpha !== null) {
+        state.gyro.history.push({ a: rr.alpha || 0, b: rr.beta || 0, c: rr.gamma || 0 });
+        if (state.gyro.history.length > 100) state.gyro.history.shift();
+        state.sensorHealth.gyro.quality = 0.85;
+        state.sensorHealth.gyro.lastUpdate = Date.now();
+        state.sensorHealth.gyro.stale = false;
+      }
+
+      processAccel(mag);
+    };
+    window.addEventListener('devicemotion', handler);
+    state._listenerCleanup.push(() => window.removeEventListener('devicemotion', handler));
+  }
+
+  function enableSimMode(reason) {
+    if (state._realSensorsActive) return;
+    state.isSim = true;
+    $('simBanner').classList.add('show');
+    showToast(`Simulation mode: ${reason}`);
+    if (!state._simulationInterval) {
+      state._simulationInterval = setInterval(runSimulationLoop, CONFIG.TICK_INTERVAL);
+    }
+  }
+
+  // ============================================================
+  // SIMULATION ENGINE
+  // ============================================================
+  function runSimulationLoop() {
+    if (!state.isSim && state.overrideMode === 'auto') return;
+    const time = Date.now() * 0.003;
+    let baseMag = 1.0;
+    let act = state.currentActivity;
+    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') act = state.overrideMode;
+
+    switch (act) {
+      case 'Walking': baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1; break;
+      case 'Running': baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15; break;
+      case 'Vehicle': baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04; break;
+      case 'Cycling': baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05; break;
+      case 'Public Transport': baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08; break;
+      default: baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
+    }
+
+    state.accel.x = Math.sin(time) * 0.5;
+    state.accel.y = Math.cos(time) * 0.5;
+    state.accel.z = baseMag * 9.81;
+    state.accel.mag = baseMag;
+
+    switch (act) {
+      case 'Vehicle': state.speed = 45 + Math.random() * 20; break;
+      case 'Cycling': state.speed = 18 + Math.random() * 8; break;
+      case 'Running': state.speed = 9 + Math.random() * 3; break;
+      case 'Walking': state.speed = 4 + Math.random() * 2; break;
+      case 'Public Transport': state.speed = 25 + Math.random() * 10; break;
+      default: state.speed = 0;
+    }
+
+    processAccel(baseMag);
+  }
+
+  // ============================================================
+  // PROCESSING ENGINE (core - kept from original)
+  // ============================================================
+  function processAccel(mag) {
+    state.accel.history.push(mag);
+    if (state.accel.history.length > CONFIG.MAX_HISTORY) state.accel.history.shift();
+
+    const variance = getVariance(state.accel.history.slice(-30));
+
+    const prevMag = state.accel.history[state.accel.history.length - 2] || mag;
+    const delta = Math.abs(mag - prevMag);
+    state.shakeIntensity = delta;
+    if (delta > CONFIG.ACTIVITY_THRESHOLDS.SHAKE_THRESHOLD) {
+      triggerAutomation('Shake');
+      VibrationEngine.vibrate([50, 30, 50]);
+      addTimelineEvent('Shake detected', `Intensity: ${delta.toFixed(2)}g`);
+    }
+
+    if (state.recordingGesture) state.recordedSamples.push(mag);
+
+    if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
+      state.fallTriggered = true;
+      SoundEngine.playFall();
+      VibrationEngine.fallWarning();
+      NotificationSystem.showFallAlert();
+
+      setTimeout(() => {
+        const recent = state.accel.history.slice(-10);
+        const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const orientationChanged = Math.abs(state.orientation.beta) > 30 || Math.abs(state.orientation.gamma) > 30;
+
+        if (Math.abs(avgRest - 1.0) < 0.2 && orientationChanged) {
+          $('fallModal').classList.add('show');
+          triggerAutomation('Fall');
+          addTimelineEvent('⚠️ Fall detected', 'Impact followed by stillness and orientation change');
+        }
+        state.fallTriggered = false;
+      }, 1200);
+    }
+
+    const stepResult = ImprovedStepEngine.detectStep(mag, Date.now());
+    if (stepResult) {
+      state.steps++;
+      updateGoalProgress();
+      if (state.currentActivity === 'Running') SoundEngine.playRunStep();
+      else if (state.currentActivity === 'Walking') SoundEngine.playStep();
+
+      const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+      if (state.steps >= goal && !state._goalReached) {
+        state._goalReached = true;
+        triggerAutomation('StepGoal');
+        VibrationEngine.stepGoalReached();
+        NotificationSystem.showStepGoalReached(state.steps, goal);
+      }
+    }
+
+    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
+      setActivity(state.overrideMode, 99);
+      return;
+    }
+
+    const result = ImprovedActivityEngine.update(
+      state.accel.history,
+      state.gyro.history,
+      { speed: state.speed }
+    );
+
+    if (result && result.key) {
+      setActivity(result.key, result.confidence || 85);
+    }
+  }
+
+  function getVariance(arr) {
+    if (arr.length < 2) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+  }
+
+  function setActivity(newAct, conf) {
+    if (state.dnr) return;
+
+    const now = Date.now();
+    const elapsed = (now - state.activityStartTime) / 1000;
+    if (elapsed > 0.5) {
+      state.activityDurations[state.currentActivity] = (state.activityDurations[state.currentActivity] || 0) + elapsed;
+    }
+    state.activityStartTime = now;
+
+    if (state.currentActivity === newAct) {
+      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 5);
+    } else {
+      state.confidence = Math.min(conf + 10, 100);
+    }
+    state.confidence = clamp(state.confidence, 10, 100);
+
+    state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
+    if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
+
+    const oldAct = state.currentActivity;
+
+    if (state.currentActivity !== newAct) {
+      state.currentActivity = newAct;
+      addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence.`);
+      triggerAutomation(newAct);
+      renderTransitionChart();
+      renderDurationDisplay();
+      detectPatterns();
+
+      SessionEngine.endSession();
+      SessionEngine.startSession(newAct);
+
+      VibrationEngine.activityChanged();
+      if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
+        NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
+      }
+    }
+
+    SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
+    renderDailySummary();
+    renderDurationDisplay();
+
+    const sessionCount = $('sessionCountDisplay');
+    if (sessionCount) sessionCount.textContent = SessionEngine._sessions.length;
+  }
+
+  // ============================================================
+  // ACTIVITY ENGINE (Simplified version for this rewrite)
   // ============================================================
   const ImprovedActivityEngine = {
     _confirmedActivity: 'Stationary',
@@ -1090,7 +1625,6 @@
 
     extractFeatures(magHistory, gyroHistory, gpsData) {
       if (magHistory.length < 5) return null;
-      // Apply low-pass filter
       const filtered = magHistory.slice(-40).map(v => this.lowPassFilter(v));
       if (filtered.length < 3) return null;
 
@@ -1110,7 +1644,7 @@
 
       let jerkSum = 0;
       for (let i = 1; i < filtered.length; i++) {
-        jerkSum += Math.abs(filtered[i] - filtered[i-1]);
+        jerkSum += Math.abs(filtered[i] - filtered[i - 1]);
       }
       features.jerk = jerkSum / filtered.length;
 
@@ -1143,40 +1677,34 @@
         'Public Transport': 0.02
       };
 
-      // Stationary
       if (features.variance < 0.003 && features.stepFrequency < 15 && (features.speed === null || features.speed < 1.2)) {
         scores.Stationary += 0.7;
       }
       if (features.gyroVariance < 2) scores.Stationary += 0.15;
 
-      // Walking
       if (features.variance > 0.005 && features.variance < 0.4 &&
-          features.stepFrequency >= 40 && features.stepFrequency <= 135) {
+        features.stepFrequency >= 40 && features.stepFrequency <= 135) {
         scores.Walking += 0.55;
         if (features.stepFrequency > 60) scores.Walking += 0.15;
       }
       if (features.speed !== null && features.speed > 1.5 && features.speed < 8) scores.Walking += 0.25;
       if (features.gyroVariance > 2 && features.gyroVariance < 20) scores.Walking += 0.05;
 
-      // Running
       if (features.variance > 0.35 && features.variance < 1.5 && features.stepFrequency > 150) {
         scores.Running += 0.6;
       }
       if (features.speed !== null && features.speed >= 7 && features.speed < 16) scores.Running += 0.2;
 
-      // Cycling
       if (features.speed !== null && features.speed > 10 && features.speed <= 28) scores.Cycling += 0.55;
       if (features.variance > 0.001 && features.variance < 0.02 && features.stepFrequency < 20) scores.Cycling += 0.15;
 
-      // Vehicle
       if (features.speed !== null && features.speed > 28) {
         scores.Vehicle += Math.min(0.75, features.speed / 70);
       }
       if (features.speed !== null && features.speed > 28 && features.stepFrequency < 10) scores.Vehicle += 0.15;
 
-      // Public Transport
       if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
-          features.peak > 0.5 && features.stepFrequency < 8) {
+        features.peak > 0.5 && features.stepFrequency < 8) {
         scores['Public Transport'] += 0.12;
       }
 
@@ -1199,7 +1727,6 @@
     },
 
     update(magHistory, gyroHistory, gpsData) {
-      // DNR check at the beginning
       if (state.dnr) {
         return { key: state.currentActivity || 'Stationary', confidence: state.confidence || 50, quality: 'Low' };
       }
@@ -1232,7 +1759,7 @@
   };
 
   // ============================================================
-  // IMPROVED STEP ENGINE - With peak prominence
+  // STEP ENGINE
   // ============================================================
   const ImprovedStepEngine = {
     _buffer: [],
@@ -1242,7 +1769,6 @@
     _stepCount: 0,
     _cadence: 0,
     _confidence: 0,
-    _peakBuffer: [],
 
     updateBaseline(mag) {
       this._buffer.push(mag);
@@ -1256,7 +1782,6 @@
     },
 
     detectStep(mag, timestamp) {
-      // DNR check
       if (state.dnr) return null;
 
       this.updateBaseline(mag);
@@ -1265,10 +1790,9 @@
       if (history.length < 3) return null;
 
       const idx = history.length - 1;
-      const isValley = mag < history[idx-1] && mag < history[idx-2];
-      const isPeak = mag > history[idx-1] && mag > history[idx-2];
+      const isValley = mag < history[idx - 1] && mag < history[idx - 2];
+      const isPeak = mag > history[idx - 1] && mag > history[idx - 2];
 
-      // Calculate peak prominence
       let prominence = 0;
       if (isPeak || isValley) {
         const neighbors = history.slice(-6);
@@ -1279,7 +1803,7 @@
       if ((isValley || isPeak) && deviation > this._threshold && prominence > this._threshold * 0.7) {
         const timeSinceLast = timestamp - this._lastStepTime;
         if (timeSinceLast > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN &&
-            timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX) {
+          timeSinceLast < CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MAX) {
           this._stepCount++;
           this._lastStepTime = timestamp;
           this._confidence = Math.min(95, this._confidence + 2);
@@ -1479,7 +2003,7 @@
   };
 
   // ============================================================
-  // SMART SUGGESTIONS ENGINE
+  // SUGGESTIONS ENGINE
   // ============================================================
   const SuggestionsEngine = {
     _suggestions: [],
@@ -1562,7 +2086,7 @@
   };
 
   // ============================================================
-  // SENSOR CALIBRATION
+  // CALIBRATION ENGINE
   // ============================================================
   const CalibrationEngine = {
     _calibrated: false,
@@ -1608,7 +2132,6 @@
       this._calibrated = true;
       this.updateThresholds();
       showToast('Calibration complete!');
-      // Store in IndexedDB
       StorageEngine.put('preferences', { id: 'calibration', ...this._baseline, calibrated: true }).catch(() => {});
       return this._baseline;
     },
@@ -1633,525 +2156,26 @@
   };
 
   // ============================================================
-  // STORAGE ENGINE
+  // TIMELINE FUNCTIONS
   // ============================================================
-  const StorageEngine = {
-    _db: null,
-    _memFallback: true,
-    _memStore: {},
-
-    init() {
-      return new Promise((resolve) => {
-        if (!('indexedDB' in window)) { this._memFallback = true; resolve(false); return; }
-        try {
-          const req = indexedDB.open('sensormind_db', 4);
-          req.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities'].forEach(s => {
-              if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
-            });
-          };
-          req.onsuccess = (e) => { this._db = e.target.result; this._memFallback = false; resolve(true); };
-          req.onerror = () => { this._memFallback = true; resolve(false); };
-        } catch (e) { this._memFallback = true; resolve(false); }
-      });
-    },
-
-    _getStore(store) { if (!this._memStore[store]) this._memStore[store] = []; return this._memStore[store]; },
-    _nextId() { return Date.now() + '_' + Math.random().toString(36).substr(2, 6); },
-
-    add(store, data) {
-      if (!this._memFallback && this._db) {
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = this._db.transaction(store, 'readwrite');
-            const req = tx.objectStore(store).add(data);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          } catch (e) { reject(e); }
-        });
-      }
-      return new Promise((resolve) => {
-        const items = this._getStore(store);
-        const record = { ...data, id: this._nextId() };
-        items.push(record);
-        resolve(record.id);
-      });
-    },
-
-    put(store, data) {
-      if (!this._memFallback && this._db) {
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = this._db.transaction(store, 'readwrite');
-            const req = tx.objectStore(store).put(data);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          } catch (e) { reject(e); }
-        });
-      }
-      return new Promise((resolve) => {
-        const items = this._getStore(store);
-        const idx = items.findIndex(i => i.id === data.id);
-        if (idx >= 0) { items[idx] = data; } else { items.push(data); }
-        resolve(data.id);
-      });
-    },
-
-    getAll(store) {
-      if (!this._memFallback && this._db) {
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = this._db.transaction(store, 'readonly');
-            const req = tx.objectStore(store).getAll();
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          } catch (e) { reject(e); }
-        });
-      }
-      return new Promise((resolve) => { resolve(this._getStore(store)); });
-    },
-
-    delete(store, id) {
-      if (!this._memFallback && this._db) {
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = this._db.transaction(store, 'readwrite');
-            const req = tx.objectStore(store).delete(id);
-            req.onsuccess = () => resolve(true);
-            req.onerror = () => reject(req.error);
-          } catch (e) { reject(e); }
-        });
-      }
-      return new Promise((resolve) => {
-        const items = this._getStore(store);
-        const idx = items.findIndex(i => i.id === id);
-        if (idx >= 0) items.splice(idx, 1);
-        resolve(true);
-      });
-    },
-
-    clear(store) {
-      if (!this._memFallback && this._db) {
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = this._db.transaction(store, 'readwrite');
-            const req = tx.objectStore(store).clear();
-            req.onsuccess = () => resolve(true);
-            req.onerror = () => reject(req.error);
-          } catch (e) { reject(e); }
-        });
-      }
-      return new Promise((resolve) => { if (this._memStore[store]) this._memStore[store] = []; resolve(true); });
-    },
-
-    isMemFallback() { return this._memFallback; }
-  };
-
-  // ============================================================
-  // UI HELPERS
-  // ============================================================
-  const $ = id => document.getElementById(id);
-
-  function showToast(msg) {
-    const toast = $('toast');
-    toast.textContent = msg;
-    toast.classList.add('show');
-    clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
-  }
-
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  function fmt(n, d) { return (n === null || n === undefined || isNaN(n)) ? '–' : n.toFixed(d); }
-
-  function nowLabel() {
-    const d = new Date();
-    let h = d.getHours(),
-      m = d.getMinutes();
-    const ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
-  }
-
-  function haversine(lat1, lon1, lat2, lon2) {
-    const R = 6371000,
-      toRad = x => x * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1),
-      dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  // ============================================================
-  // NAVIGATION
-  // ============================================================
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.nav-btn').forEach(b => {
-        b.classList.remove('active');
-        b.setAttribute('aria-selected', 'false');
-        b.removeAttribute('aria-current');
-      });
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      this.classList.add('active');
-      this.setAttribute('aria-selected', 'true');
-      this.setAttribute('aria-current', 'page');
-      const target = this.getAttribute('data-target');
-      $(target).classList.add('active');
-    });
-  });
-
-  // ============================================================
-  // SENSOR MANAGER - Split permissions
-  // ============================================================
-  function enableMotionSensors() {
-    if (state._motionEnabled) {
-      showToast('Motion sensors already enabled');
-      return;
-    }
-
-    state._motionEnabled = true;
-
-    if ('DeviceMotionEvent' in window) {
-      if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission()
-          .then(res => { if (res === 'granted') listenMotion(); else enableSimMode('Motion permission denied'); })
-          .catch(() => enableSimMode('Motion access error'));
-      } else {
-        listenMotion();
-      }
-    } else {
-      enableSimMode('DeviceMotionEvent unsupported');
-    }
-
-    if ('DeviceOrientationEvent' in window) {
-      window.addEventListener('deviceorientation', e => {
-        state.orientation = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
-      });
-    }
-
-    SoundEngine.init();
-    $('gate').classList.add('hidden');
-    state.isLive = true;
-
-    if (!state._locationEnabled) {
-      showToast('Motion sensors enabled. Enable location for distance tracking.');
-    }
-
-    startEngine();
-  }
-
-  function enableLocationSensors() {
-    if (state._locationEnabled) {
-      showToast('Location already enabled');
-      return;
-    }
-
-    state._locationEnabled = true;
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.watchPosition(
-        pos => {
-          state.speed = Math.round((pos.coords.speed || 0) * 3.6);
-          state.sensorHealth.gps.quality = 0.85;
-          state.sensorHealth.gps.lastUpdate = Date.now();
-          state.sensorHealth.gps.stale = false;
-          state._lastGpsUpdate = Date.now();
-
-          if (pos.coords.latitude && pos.coords.longitude) {
-            DistanceTracker.updatePosition(pos.coords.latitude, pos.coords.longitude, state.speed, pos.coords.accuracy);
-          }
-
-          // Place detection
-          if (state.places.home && pos.coords) {
-            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
-            if (d < CONFIG.PLACE_RADIUS && !state._wasHome) {
-              triggerAutomation('ArriveHome');
-              state._wasHome = true;
-            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasHome) {
-              triggerAutomation('LeaveHome');
-              state._wasHome = false;
-            }
-          }
-
-          if (state.places.work && pos.coords) {
-            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.work.lat, state.places.work.lon);
-            if (d < CONFIG.PLACE_RADIUS && !state._wasWork) {
-              triggerAutomation('ArriveWork');
-              state._wasWork = true;
-            } else if (d > CONFIG.PLACE_RADIUS + 50 && state._wasWork) {
-              triggerAutomation('LeaveWork');
-              state._wasWork = false;
-            }
-          }
-        },
-        () => { state.speed = 0; },
-        { enableHighAccuracy: true }
-      );
-      showToast('Location enabled. GPS accuracy improves outdoors.');
-    } else {
-      showToast('Geolocation not supported in this browser');
-    }
-  }
-
-  function listenMotion() {
-    window.addEventListener('devicemotion', e => {
-      // DNR check at the beginning of sensor callback
-      if (state.dnr) return;
-
-      if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') return;
-      const acc = e.accelerationIncludingGravity || e.acceleration;
-      if (!acc || acc.x === null) return;
-
-      state._realSensorsActive = true;
-      state.sensorHealth.accel.quality = 0.92;
-      state.sensorHealth.accel.lastUpdate = Date.now();
-      state.sensorHealth.accel.stale = false;
-
-      const x = acc.x || 0;
-      const y = acc.y || 0;
-      const z = acc.z || 0;
-      const mag = Math.sqrt(x * x + y * y + z * z) / 9.81;
-
-      state.accel.x = x;
-      state.accel.y = y;
-      state.accel.z = z;
-      state.accel.mag = mag;
-
-      const rr = e.rotationRate;
-      if (rr && rr.alpha !== null) {
-        state.gyro.history.push({ a: rr.alpha || 0, b: rr.beta || 0, c: rr.gamma || 0 });
-        if (state.gyro.history.length > 100) state.gyro.history.shift();
-        state.sensorHealth.gyro.quality = 0.85;
-        state.sensorHealth.gyro.lastUpdate = Date.now();
-        state.sensorHealth.gyro.stale = false;
-      }
-
-      processAccel(mag);
-    });
-  }
-
-  function enableSimMode(reason) {
-    if (state._realSensorsActive) return;
-    state.isSim = true;
-    $('simBanner').classList.add('show');
-    showToast(`Simulation mode: ${reason}`);
-    if (!state._simulationInterval) {
-      state._simulationInterval = setInterval(runSimulationLoop, CONFIG.TICK_INTERVAL);
-    }
-  }
-
-  // ============================================================
-  // SIMULATION ENGINE
-  // ============================================================
-  function runSimulationLoop() {
-    if (!state.isSim && state.overrideMode === 'auto') return;
-    const time = Date.now() * 0.003;
-    let baseMag = 1.0;
-    let act = state.currentActivity;
-    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') act = state.overrideMode;
-
-    switch (act) {
-      case 'Walking':
-        baseMag = 1.0 + Math.sin(time * 4) * 0.25 + Math.sin(time * 7) * 0.1;
-        break;
-      case 'Running':
-        baseMag = 1.0 + Math.sin(time * 8) * 0.65 + Math.sin(time * 12) * 0.15;
-        break;
-      case 'Vehicle':
-        baseMag = 1.0 + Math.sin(time * 1.5) * 0.08 + Math.sin(time * 3) * 0.04;
-        break;
-      case 'Cycling':
-        baseMag = 1.0 + Math.sin(time * 3.5) * 0.15 + Math.sin(time * 7) * 0.05;
-        break;
-      case 'Public Transport':
-        baseMag = 1.0 + Math.sin(time * 2) * 0.1 + Math.sin(time * 4) * 0.08;
-        break;
-      default:
-        baseMag = 1.0 + (Math.random() - 0.5) * 0.02;
-    }
-
-    state.accel.x = Math.sin(time) * 0.5;
-    state.accel.y = Math.cos(time) * 0.5;
-    state.accel.z = baseMag * 9.81;
-    state.accel.mag = baseMag;
-
-    switch (act) {
-      case 'Vehicle':
-        state.speed = 45 + Math.random() * 20;
-        break;
-      case 'Cycling':
-        state.speed = 18 + Math.random() * 8;
-        break;
-      case 'Running':
-        state.speed = 9 + Math.random() * 3;
-        break;
-      case 'Walking':
-        state.speed = 4 + Math.random() * 2;
-        break;
-      case 'Public Transport':
-        state.speed = 25 + Math.random() * 10;
-        break;
-      default:
-        state.speed = 0;
-    }
-
-    processAccel(baseMag);
-  }
-
-  // ============================================================
-  // SIGNAL PROCESSING ENGINE
-  // ============================================================
-  function processAccel(mag) {
-    // DNR check already done at sensor callback level
-    state.accel.history.push(mag);
-    if (state.accel.history.length > CONFIG.MAX_HISTORY) state.accel.history.shift();
-
-    const variance = getVariance(state.accel.history.slice(-30));
-
-    // Shake Detection
-    const prevMag = state.accel.history[state.accel.history.length - 2] || mag;
-    const delta = Math.abs(mag - prevMag);
-    state.shakeIntensity = delta;
-    if (delta > CONFIG.ACTIVITY_THRESHOLDS.SHAKE_THRESHOLD) {
-      triggerAutomation('Shake');
-      VibrationEngine.vibrate([50, 30, 50]);
-      addTimelineEvent('Shake detected', `Intensity: ${delta.toFixed(2)}g`);
-    }
-
-    // Gesture Recording
-    if (state.recordingGesture) state.recordedSamples.push(mag);
-
-    // Fall Detection - Multi-signal
-    if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
-      state.fallTriggered = true;
-      SoundEngine.playFall();
-      VibrationEngine.fallWarning();
-      NotificationSystem.showFallAlert();
-
-      // Multi-signal fall verification
-      setTimeout(() => {
-        const recent = state.accel.history.slice(-10);
-        const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
-        const orientationChanged = Math.abs(state.orientation.beta) > 30 || Math.abs(state.orientation.gamma) > 30;
-
-        if (Math.abs(avgRest - 1.0) < 0.2 && orientationChanged) {
-          $('fallModal').classList.add('show');
-          triggerAutomation('Fall');
-          addTimelineEvent('⚠️ Fall detected', 'Impact followed by stillness and orientation change');
-        }
-        state.fallTriggered = false;
-      }, 1200);
-    }
-
-    // Step Detection
-    const stepResult = ImprovedStepEngine.detectStep(mag, Date.now());
-    if (stepResult) {
-      state.steps++;
-      updateGoalProgress();
-      if (state.currentActivity === 'Running') SoundEngine.playRunStep();
-      else if (state.currentActivity === 'Walking') SoundEngine.playStep();
-
-      const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
-      if (state.steps >= goal && !state._goalReached) {
-        state._goalReached = true;
-        triggerAutomation('StepGoal');
-        VibrationEngine.stepGoalReached();
-        NotificationSystem.showStepGoalReached(state.steps, goal);
-      }
-    }
-
-    // Activity Classification
-    if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
-      setActivity(state.overrideMode, 99);
-      return;
-    }
-
-    const result = ImprovedActivityEngine.update(
-      state.accel.history,
-      state.gyro.history,
-      { speed: state.speed }
-    );
-
-    if (result && result.key) {
-      setActivity(result.key, result.confidence || 85);
-    }
-  }
-
-  function getVariance(arr) {
-    if (arr.length < 2) return 0;
-    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
-  }
-
-  function setActivity(newAct, conf) {
-    // DNR check
+  function addTimelineEvent(label, detail) {
     if (state.dnr) return;
-
-    const now = Date.now();
-    const elapsed = (now - state.activityStartTime) / 1000;
-    if (elapsed > 0.5) {
-      state.activityDurations[state.currentActivity] = (state.activityDurations[state.currentActivity] || 0) + elapsed;
-    }
-    state.activityStartTime = now;
-
-    if (state.currentActivity === newAct) {
-      state.confidence = Math.min(100, (state.confidence + conf) / 2 + 5);
-    } else {
-      state.confidence = Math.min(conf + 10, 100);
-    }
-    state.confidence = clamp(state.confidence, 10, 100);
-
-    state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
-    if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
-
-    const oldAct = state.currentActivity;
-
-    if (state.currentActivity !== newAct) {
-      state.currentActivity = newAct;
-      addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence.`);
-      triggerAutomation(newAct);
-      renderTransitionChart();
-      renderDurationDisplay();
-      detectPatterns();
-
-      SessionEngine.endSession();
-      SessionEngine.startSession(newAct);
-
-      VibrationEngine.activityChanged();
-      if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
-        NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
-      }
-    }
-
-    SessionEngine.updateSession(state.currentActivity, state.steps, state.speed, state.confidence);
-    renderDailySummary();
-    renderDurationDisplay();
-
-    const sessionCount = $('sessionCountDisplay');
-    if (sessionCount) sessionCount.textContent = SessionEngine._sessions.length;
+    const timeStr = nowLabel();
+    const safeLabel = escapeHtml(label);
+    const safeDetail = escapeHtml(detail || '');
+    state.timeline.unshift({ label: safeLabel, detail: safeDetail, time: timeStr });
+    if (state.timeline.length > 25) state.timeline.pop();
+    renderTimeline();
   }
 
-  // ============================================================
-  // XSS-SAFE RENDER FUNCTIONS
-  // ============================================================
-  function safeRenderList(container, items, template) {
-    if (!container) return '';
-    if (!items || items.length === 0) {
-      container.innerHTML = `<div class="empty-note">No items to display.</div>`;
-      return '';
+  function renderTimeline() {
+    const container = $('timeline');
+    $('tlCount').textContent = `${state.timeline.length} events`;
+    if (state.timeline.length === 0) {
+      container.innerHTML = `<div class="tl-empty">No events detected yet — start moving.</div>`;
+      return;
     }
-    const html = items.map((item, index) => {
-      // Escape all user-provided values
-      const safeItem = {};
-      for (const [key, value] of Object.entries(item)) {
-        safeItem[key] = typeof value === 'string' ? escapeHtml(value) : value;
-      }
-      return template(safeItem, index);
-    }).join('');
-    container.innerHTML = html;
-    return html;
+    renderSafeList(container, state.timeline, renderTimelineItem);
   }
 
   // ============================================================
@@ -2180,7 +2204,7 @@
             <div class="suggest-label" style="color:var(--violet)">Pattern Detected</div>
             <div class="suggest-text">You frequently start ${escapeHtml(act)} around ${escapeHtml(hour)}:00 (${count} times). Create an automation?</div>
             <div class="suggest-actions">
-              <button class="btn-secondary" onclick="window.createAutomationFromPattern('${escapeHtml(act)}', '${escapeHtml(hour)}')">Create</button>
+              <button class="btn-secondary" onclick="createAutomationFromPattern('${escapeHtml(act)}', '${escapeHtml(hour)}')">Create</button>
               <button class="btn-secondary" onclick="document.getElementById('suggestionArea').innerHTML='<div class=\'empty-note\'>Suggestion dismissed.</div>'">Dismiss</button>
             </div>
           </div>
@@ -2190,7 +2214,7 @@
     }
   }
 
-  window.createAutomationFromPattern = function(act, hour) {
+  function createAutomationFromPattern(act, hour) {
     const name = `${act} at ${hour}:00`;
     const rule = {
       id: Date.now().toString(),
@@ -2208,47 +2232,10 @@
     renderRules();
     showToast(`Automation "${name}" created from pattern!`);
     $('suggestionArea').innerHTML = `<div class="empty-note">Automation created! Check the Rules tab.</div>`;
-  };
-
-  // ============================================================
-  // TIMELINE
-  // ============================================================
-  function addTimelineEvent(label, detail) {
-    if (state.dnr) return;
-    const timeStr = nowLabel();
-    // Escape user data
-    const safeLabel = escapeHtml(label);
-    const safeDetail = escapeHtml(detail || '');
-    state.timeline.unshift({ label: safeLabel, detail: safeDetail, time: timeStr });
-    if (state.timeline.length > 25) state.timeline.pop();
-    renderTimeline();
-  }
-
-  function renderTimeline() {
-    const container = $('timeline');
-    $('tlCount').textContent = `${state.timeline.length} events`;
-    if (state.timeline.length === 0) {
-      container.innerHTML = `<div class="tl-empty">No events detected yet — start moving.</div>`;
-      return;
-    }
-    safeRenderList(container, state.timeline, (item, idx) => `
-      <div class="tl-item" role="button" tabindex="0" data-idx="${idx}" 
-           onkeydown="if(event.key==='Enter'||event.key===' ')this.querySelector('.tl-detail').classList.toggle('open')">
-        <div class="tl-time">${item.time}</div>
-        <div class="tl-label">${item.label}</div>
-        <div class="tl-detail">${item.detail}</div>
-      </div>
-    `);
-    // Add click/keyboard handlers
-    container.querySelectorAll('.tl-item').forEach(el => {
-      el.addEventListener('click', function() {
-        this.querySelector('.tl-detail').classList.toggle('open');
-      });
-    });
   }
 
   // ============================================================
-  // AUTOMATION ENGINE - XSS Safe
+  // AUTOMATION ENGINE
   // ============================================================
   function triggerAutomation(triggerType) {
     if (state.dnr) return;
@@ -2307,67 +2294,83 @@
     VibrationEngine.automationTriggered();
   }
 
+  // ============================================================
+  // RULE RENDER (XSS-safe)
+  // ============================================================
+  function renderRuleItem(rule) {
+    const div = createElement('div', { className: 'rule' });
+
+    const head = createElement('div', { className: 'rule-head' });
+    const textDiv = createElement('div', { className: 'rule-text' });
+    const nameEl = createElement('b', { textContent: rule.name });
+    textDiv.appendChild(nameEl);
+
+    const whenDiv = createElement('div', { className: 'rule-when', textContent: `WHEN ${rule.when}` });
+    textDiv.appendChild(whenDiv);
+    const thenDiv = createElement('div', { className: 'rule-when', textContent: `THEN → ${rule.then}` });
+    textDiv.appendChild(thenDiv);
+    if (rule.condType && rule.condType !== 'none') {
+      const condDiv = createElement('div', { className: 'rule-when', textContent: `IF → ${rule.condType} ${rule.condVal}` });
+      textDiv.appendChild(condDiv);
+    }
+
+    const switchLabel = createElement('label', { className: 'switch' });
+    const checkbox = createElement('input', { type: 'checkbox', 'data-rule-id': rule.id });
+    if (rule.active) checkbox.checked = true;
+    const slider = createElement('span', { className: 'slider' });
+    switchLabel.appendChild(checkbox);
+    switchLabel.appendChild(slider);
+
+    head.appendChild(textDiv);
+    head.appendChild(switchLabel);
+
+    const actions = createElement('div', { className: 'rule-actions' });
+    const testBtn = createElement('button', { className: 'chip-btn', 'data-rule-id': rule.id, 'data-action': 'test', textContent: 'Test' });
+    const delBtn = createElement('button', { className: 'chip-btn danger', 'data-rule-id': rule.id, 'data-action': 'delete', textContent: 'Delete' });
+    actions.appendChild(testBtn);
+    actions.appendChild(delBtn);
+
+    div.appendChild(head);
+    div.appendChild(actions);
+
+    // Event listeners
+    checkbox.addEventListener('change', function() {
+      const r = state.automations.find(x => x.id === this.dataset.ruleId);
+      if (r) {
+        r.active = this.checked;
+        StorageEngine.put('automations', r).catch(() => {});
+        renderRules();
+      }
+    });
+
+    testBtn.addEventListener('click', function() {
+      const r = state.automations.find(x => x.id === this.dataset.ruleId);
+      if (r) {
+        showToast(`Testing: ${r.name}`);
+        const oldAct = state.currentActivity;
+        setActivity(r.when, 90);
+        setTimeout(() => setActivity(oldAct, 90), 2000);
+      }
+    });
+
+    delBtn.addEventListener('click', function() {
+      const id = this.dataset.ruleId;
+      state.automations = state.automations.filter(x => x.id !== id);
+      StorageEngine.delete('automations', id).catch(() => {});
+      renderRules();
+    });
+
+    return div;
+  }
+
   function renderRules() {
     const list = $('ruleList');
     $('ruleCount').textContent = `${state.automations.filter(a => a.active).length} active`;
-
     if (state.automations.length === 0) {
       list.innerHTML = `<div class="empty-note">No automations yet — create one above.</div>`;
       return;
     }
-
-    safeRenderList(list, state.automations, (r) => `
-      <div class="rule">
-        <div class="rule-head">
-          <div>
-            <div class="rule-text"><b>${r.name}</b></div>
-            <div class="rule-when">WHEN <b>${r.when}</b></div>
-            <div class="rule-when">THEN → <b>${r.then}</b></div>
-            ${r.condType && r.condType !== 'none' ? `<div class="rule-when">IF → ${r.condType} ${escapeHtml(r.condVal)}</div>` : ''}
-          </div>
-          <label class="switch">
-            <input type="checkbox" ${r.active ? 'checked' : ''} data-rule-id="${r.id}">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="rule-actions">
-          <button class="chip-btn" data-rule-id="${r.id}" data-action="test">Test</button>
-          <button class="chip-btn danger" data-rule-id="${r.id}" data-action="delete">Delete</button>
-        </div>
-      </div>
-    `);
-
-    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const r = state.automations.find(x => x.id === cb.dataset.ruleId);
-        if (r) {
-          r.active = cb.checked;
-          StorageEngine.put('automations', r).catch(() => {});
-          renderRules();
-        }
-      });
-    });
-
-    list.querySelectorAll('[data-action="delete"]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.ruleId;
-        state.automations = state.automations.filter(x => x.id !== id);
-        StorageEngine.delete('automations', id).catch(() => {});
-        renderRules();
-      });
-    });
-
-    list.querySelectorAll('[data-action="test"]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const r = state.automations.find(x => x.id === btn.dataset.ruleId);
-        if (r) {
-          showToast(`Testing: ${r.name}`);
-          const oldAct = state.currentActivity;
-          setActivity(r.when, 90);
-          setTimeout(() => setActivity(oldAct, 90), 2000);
-        }
-      });
-    });
+    renderSafeList(list, state.automations, renderRuleItem);
   }
 
   function renderAutomationHistory() {
@@ -2376,12 +2379,15 @@
       container.innerHTML = `<div class="empty-note">No automations have run yet.</div>`;
       return;
     }
-    safeRenderList(container, state.automationHistory, (h) => `
-      <div class="status-row">
-        <span class="status-key">${h.name}</span>
-        <span class="status-val">${h.time}</span>
-      </div>
-    `);
+    container.innerHTML = '';
+    for (const h of state.automationHistory) {
+      const row = createElement('div', { className: 'status-row' });
+      const key = createElement('span', { className: 'status-key', textContent: h.name });
+      const val = createElement('span', { className: 'status-val', textContent: h.time });
+      row.appendChild(key);
+      row.appendChild(val);
+      container.appendChild(row);
+    }
   }
 
   // ============================================================
@@ -2396,12 +2402,7 @@
       version: 1,
       rules: data
     }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sensormind-rules-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `sensormind-rules-${Date.now()}.json`);
     showToast('Rules exported!');
   }
 
@@ -2413,23 +2414,52 @@
         let rules = parsed.rules || parsed;
         if (!Array.isArray(rules)) throw new Error('Invalid format');
 
-        // Validate each rule
+        // Validate and normalize
+        const validWhen = ['Walking', 'Running', 'Vehicle', 'Cycling', 'Stationary', 'Shake', 'Fall', 'BatteryLow', 'ChargingStart', 'Public Transport', 'StepGoal', 'ArriveHome', 'LeaveHome', 'ArriveWork', 'LeaveWork'];
+        const validThen = ['notify', 'track', 'record', 'mode', 'sound', 'vibrate', 'export'];
+        const validCond = ['none', 'battery', 'timeAfter', 'timeBefore', 'confidence'];
+
+        // Limit number of imported rules
+        if (rules.length > CONFIG.MAX_IMPORT_RULES) {
+          rules = rules.slice(0, CONFIG.MAX_IMPORT_RULES);
+          showToast(`Limiting import to ${CONFIG.MAX_IMPORT_RULES} rules`);
+        }
+
         const validRules = rules.filter(r => {
-          const validWhen = ['Walking', 'Running', 'Vehicle', 'Cycling', 'Stationary', 'Shake', 'Fall', 'BatteryLow', 'ChargingStart', 'Public Transport', 'StepGoal', 'ArriveHome', 'LeaveHome', 'ArriveWork', 'LeaveWork'];
-          const validThen = ['notify', 'track', 'record', 'mode', 'sound', 'vibrate', 'export'];
-          const validCond = ['none', 'battery', 'timeAfter', 'timeBefore', 'confidence'];
-          return r.name && validWhen.includes(r.when) && validThen.includes(r.then) && validCond.includes(r.condType || 'none');
+          return r.name && typeof r.name === 'string' && r.name.length <= CONFIG.MAX_RULE_NAME_LENGTH &&
+            validWhen.includes(r.when) &&
+            validThen.includes(r.then) &&
+            validCond.includes(r.condType || 'none') &&
+            (r.condVal === undefined || (typeof r.condVal === 'number' && isFinite(r.condVal))) &&
+            (r.cooldown === undefined || (typeof r.cooldown === 'number' && r.cooldown >= 30 && r.cooldown <= 3600));
         });
 
-        validRules.forEach(r => {
-          state.automations.push({
-            ...r,
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
-            lastRun: 0
-          });
+        // Check for duplicates
+        const existingFingerprints = new Set();
+        state.automations.forEach(r => {
+          const fp = `${r.name}|${r.when}|${r.condType}|${r.condVal}|${r.then}`;
+          existingFingerprints.add(fp);
         });
+
+        let addedCount = 0;
+        validRules.forEach(r => {
+          const fp = `${r.name}|${r.when}|${r.condType}|${r.condVal}|${r.then}`;
+          if (!existingFingerprints.has(fp)) {
+            state.automations.push({
+              ...r,
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+              lastRun: 0,
+              condType: r.condType || 'none',
+              condVal: r.condVal || 0,
+              cooldown: r.cooldown || 30
+            });
+            existingFingerprints.add(fp);
+            addedCount++;
+          }
+        });
+
         renderRules();
-        showToast(`Imported ${validRules.length} valid rules`);
+        showToast(`Imported ${addedCount} new rules (${validRules.length - addedCount} duplicates skipped)`);
       } catch (err) {
         showToast('Invalid rules file');
       }
@@ -2456,12 +2486,7 @@
       }
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sensormind-session-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `sensormind-session-${Date.now()}.json`);
   }
 
   function exportEverything() {
@@ -2476,23 +2501,18 @@
     ]).then(([automations, gestures, places, sessions, events, activities, preferences]) => {
       const data = {
         timestamp: new Date().toISOString(),
-        version: '3.2',
+        version: '3.3',
         automations, gestures, places, sessions, events, activities, preferences,
         calibration: CalibrationEngine.getBaseline()
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sensormind-backup-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `sensormind-backup-${Date.now()}.json`);
       showToast('Full backup exported!');
     }).catch(() => showToast('Export failed'));
   }
 
   // ============================================================
-  // GESTURE ENGINE - XSS Safe
+  // GESTURE FUNCTIONS
   // ============================================================
   function renderGestures() {
     $('gestureCount').textContent = `${state.gestures.length} saved`;
@@ -2501,29 +2521,21 @@
       list.innerHTML = `<div class="empty-note">No gestures saved.</div>`;
       return;
     }
-    safeRenderList(list, state.gestures, (g) => `
-      <div class="status-row">
-        <span class="status-key">${g.name} (${g.samples || 0} pts)</span>
-        <span class="status-val good">${g.action}</span>
-      </div>
-    `);
+    list.innerHTML = '';
+    for (const g of state.gestures) {
+      const row = createElement('div', { className: 'status-row' });
+      const key = createElement('span', { className: 'status-key', textContent: `${g.name} (${g.samples || 0} pts)` });
+      const val = createElement('span', { className: 'status-val good', textContent: g.action });
+      row.appendChild(key);
+      row.appendChild(val);
+      list.appendChild(row);
+    }
   }
 
   // ============================================================
-  // UI RENDER LOOP - Throttled
+  // UI RENDER FUNCTIONS
   // ============================================================
-  let _uiRenderCounter = 0;
-
   function renderUI() {
-    _uiRenderCounter++;
-    // Throttle UI updates to reduce DOM churn
-    if (_uiRenderCounter % 5 !== 0 && _uiRenderCounter > 1) {
-      // Still render critical metrics every time
-      $('scopeVal').textContent = `${state.accel.mag.toFixed(2)} g`;
-      $('contextConf').textContent = `${Math.round(state.confidence)}% confidence`;
-      return;
-    }
-
     const emojis = { Stationary: '🪑', Walking: '🚶', Running: '🏃', Vehicle: '🚗', Cycling: '🚴', 'Public Transport': '🚌' };
     $('contextEmoji').textContent = emojis[state.currentActivity] || '🧭';
     $('contextName').textContent = state.currentActivity;
@@ -2592,7 +2604,6 @@
     }
     $('playMove').textContent = `${state.currentActivity} (${state.accel.mag.toFixed(2)}g)`;
 
-    // Activity Bars using durations
     const totalDuration = Object.values(state.activityDurations).reduce((a, b) => a + b, 1);
     const colors = { Stationary: 'var(--text-dim)', Walking: 'var(--amber)', Running: 'var(--red)', Vehicle: 'var(--teal)', Cycling: 'var(--violet)', 'Public Transport': 'var(--teal)' };
     $('activityBars').innerHTML = Object.entries(state.activityDurations).map(([act, dur]) => {
@@ -2677,6 +2688,69 @@
   }
 
   // ============================================================
+  // WAVEFORM
+  // ============================================================
+  const canvas = $('waveform');
+  const ctx = canvas ? canvas.getContext('2d') : null;
+
+  function drawWaveform() {
+    if (!ctx || !canvas) return;
+    const w = canvas.width = canvas.clientWidth || 300;
+    const h = canvas.height = canvas.clientHeight || 90;
+    ctx.clearRect(0, 0, w, h);
+    const data = state.accel.history;
+    if (data.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = '#4DD9C4';
+    ctx.lineWidth = 1.5;
+    const min = Math.min(0.8, ...data);
+    const max = Math.max(1.2, ...data);
+    const range = max - min || 0.5;
+    data.forEach((val, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const norm = clamp((val - min) / range, 0, 1);
+      const y = h - norm * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(107,115,133,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    const baseY = h - clamp((1.0 - min) / range, 0, 1) * h;
+    ctx.moveTo(0, baseY);
+    ctx.lineTo(w, baseY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ============================================================
+  // SOUND TOGGLE
+  // ============================================================
+  function updateSoundUI() {
+    const status = $('soundStatus');
+    const btn = $('soundToggleBtn');
+    if (SoundEngine.enabled) {
+      status.textContent = 'ON';
+      status.className = 'status on';
+      btn.setAttribute('aria-pressed', 'true');
+    } else {
+      status.textContent = 'OFF';
+      status.className = 'status off';
+      btn.setAttribute('aria-pressed', 'false');
+    }
+  }
+
+  function toggleSound() {
+    SoundEngine.setEnabled(!SoundEngine.enabled);
+    updateSoundUI();
+    showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
+    const toggle = $('toggleSound');
+    if (toggle) toggle.checked = SoundEngine.enabled;
+  }
+
+  // ============================================================
   // DAILY SUMMARY
   // ============================================================
   function renderDailySummary() {
@@ -2753,66 +2827,13 @@
   }
 
   // ============================================================
-  // WAVEFORM
+  // PLACES
   // ============================================================
-  const canvas = $('waveform');
-  const ctx = canvas ? canvas.getContext('2d') : null;
-
-  function drawWaveform() {
-    if (!ctx || !canvas) return;
-    const w = canvas.width = canvas.clientWidth || 300;
-    const h = canvas.height = canvas.clientHeight || 90;
-    ctx.clearRect(0, 0, w, h);
-    const data = state.accel.history;
-    if (data.length < 2) return;
-    ctx.beginPath();
-    ctx.strokeStyle = '#4DD9C4';
-    ctx.lineWidth = 1.5;
-    const min = Math.min(0.8, ...data);
-    const max = Math.max(1.2, ...data);
-    const range = max - min || 0.5;
-    data.forEach((val, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const norm = clamp((val - min) / range, 0, 1);
-      const y = h - norm * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(107,115,133,0.25)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    const baseY = h - clamp((1.0 - min) / range, 0, 1) * h;
-    ctx.moveTo(0, baseY);
-    ctx.lineTo(w, baseY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // ============================================================
-  // SOUND TOGGLE
-  // ============================================================
-  function updateSoundUI() {
-    const status = $('soundStatus');
-    const btn = $('soundToggleBtn');
-    if (SoundEngine.enabled) {
-      status.textContent = 'ON';
-      status.className = 'status on';
-      btn.setAttribute('aria-pressed', 'true');
-    } else {
-      status.textContent = 'OFF';
-      status.className = 'status off';
-      btn.setAttribute('aria-pressed', 'false');
-    }
-  }
-
-  function toggleSound() {
-    SoundEngine.setEnabled(!SoundEngine.enabled);
-    updateSoundUI();
-    showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
-    const toggle = $('toggleSound');
-    if (toggle) toggle.checked = SoundEngine.enabled;
+  function renderPlaces() {
+    $('placesGrid').innerHTML = `
+      <div class="status-row"><span class="status-key">Home</span><span class="status-val ${state.places.home ? 'good' : 'na'}">${state.places.home ? 'Saved' : 'Not set'}</span></div>
+      <div class="status-row"><span class="status-key">Work</span><span class="status-val ${state.places.work ? 'good' : 'na'}">${state.places.work ? 'Saved' : 'Not set'}</span></div>
+    `;
   }
 
   // ============================================================
@@ -2885,7 +2906,7 @@
       }
     }).catch(() => {});
 
-    setInterval(() => {
+    const mainInterval = setInterval(() => {
       if (state.batterySaver && state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD) {
         state._tickCounter = (state._tickCounter || 0) + 1;
         if (state._tickCounter % 3 !== 0) return;
@@ -2915,8 +2936,9 @@
       }
 
     }, CONFIG.TICK_INTERVAL);
+    state._listenerCleanup.push(() => clearInterval(mainInterval));
 
-    setInterval(() => {
+    const slowInterval = setInterval(() => {
       renderTimeline();
       renderAutomationHistory();
       renderRules();
@@ -2934,15 +2956,29 @@
                 <div class="suggest-label" style="color:var(--violet)">💡 Suggestion</div>
                 <div class="suggest-text">${escapeHtml(s.title)}</div>
                 <div class="suggest-actions">
-                  <button class="btn-secondary" onclick="window.acceptSuggestion('${escapeHtml(s.type)}')">${escapeHtml(s.action)}</button>
-                  <button class="btn-secondary" onclick="window.dismissSuggestion('${escapeHtml(s.type)}')">Dismiss</button>
+                  <button class="btn-secondary" data-suggestion="${escapeHtml(s.type)}" data-action="accept">${escapeHtml(s.action)}</button>
+                  <button class="btn-secondary" data-suggestion="${escapeHtml(s.type)}" data-action="dismiss">Dismiss</button>
                 </div>
               </div>
             `).join('');
+
+            // Attach event listeners safely
+            area.querySelectorAll('[data-suggestion]').forEach(btn => {
+              btn.addEventListener('click', function() {
+                const type = this.dataset.suggestion;
+                const action = this.dataset.action;
+                if (action === 'accept') {
+                  acceptSuggestion(type);
+                } else if (action === 'dismiss') {
+                  dismissSuggestion(type);
+                }
+              });
+            });
           }
         }
       });
     }, CONFIG.SLOW_TICK_INTERVAL);
+    state._listenerCleanup.push(() => clearInterval(slowInterval));
 
     setTimeout(() => {
       if (!state._realSensorsActive && !state.isSim && state.isLive) {
@@ -2951,12 +2987,12 @@
     }, CONFIG.SIM_TIMEOUT);
   }
 
-  window.acceptSuggestion = function(type) {
+  function acceptSuggestion(type) {
     const suggestion = SuggestionsEngine._suggestions.find(s => s.type === type);
     if (suggestion) {
       if (suggestion.type === 'activity_pattern') {
         const data = suggestion.data;
-        window.createAutomationFromPattern(data.when, data.value);
+        createAutomationFromPattern(data.when, data.value);
       } else if (suggestion.type === 'step_goal_near') {
         showToast('Time to walk! Get those steps in.');
       } else if (suggestion.type === 'inactivity') {
@@ -2965,21 +3001,11 @@
       SuggestionsEngine.dismiss(type);
     }
     $('suggestionArea').innerHTML = '<div class="empty-note">Suggestion accepted!</div>';
-  };
+  }
 
-  window.dismissSuggestion = function(type) {
+  function dismissSuggestion(type) {
     SuggestionsEngine.dismiss(type);
     $('suggestionArea').innerHTML = '<div class="empty-note">Suggestion dismissed.</div>';
-  };
-
-  // ============================================================
-  // PLACES
-  // ============================================================
-  function renderPlaces() {
-    $('placesGrid').innerHTML = `
-      <div class="status-row"><span class="status-key">Home</span><span class="status-val ${state.places.home ? 'good' : 'na'}">${state.places.home ? 'Saved' : 'Not set'}</span></div>
-      <div class="status-row"><span class="status-key">Work</span><span class="status-val ${state.places.work ? 'good' : 'na'}">${state.places.work ? 'Saved' : 'Not set'}</span></div>
-    `;
   }
 
   // ============================================================
@@ -3033,6 +3059,23 @@
   }
 
   // ============================================================
+  // GLOBAL ERROR HANDLING
+  // ============================================================
+  window.addEventListener('error', (event) => {
+    console.error('SensorMind error:', event.message, event.filename, event.lineno);
+    if (!state.debug) {
+      showToast('Something went wrong. SensorMind has continued in safe mode.');
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    if (!state.debug) {
+      showToast('An unexpected error occurred. Please try again.');
+    }
+  });
+
+  // ============================================================
   // EVENT BINDINGS
   // ============================================================
   $('enableMotionBtn').addEventListener('click', enableMotionSensors);
@@ -3065,6 +3108,7 @@
     $('fallModal').classList.remove('show');
     showToast('Fall alert dismissed');
   });
+
   $('fallHelp').addEventListener('click', () => {
     $('fallModal').classList.remove('show');
     showToast('📞 Request Help (Demo) — Emergency contact not configured');
@@ -3081,13 +3125,21 @@
     });
   });
 
+  // ============================================================
+  // AUTOMATION BUILDER
+  // ============================================================
   $('bCreate').addEventListener('click', () => {
     const name = $('bName').value.trim() || 'Custom Rule';
+    if (name.length > CONFIG.MAX_RULE_NAME_LENGTH) {
+      showToast(`Name too long (max ${CONFIG.MAX_RULE_NAME_LENGTH} characters)`);
+      return;
+    }
     const when = $('bWhen').value;
     const condType = $('bCondType').value;
-    const condVal = $('bCondVal').value || 0;
+    const condVal = parseFloat($('bCondVal').value) || 0;
     const then = $('bThen').value;
-    const cooldown = Number($('bCooldown').value) || 30;
+    const cooldown = Math.max(30, Math.min(3600, parseInt($('bCooldown').value) || 30));
+
     const rule = {
       id: Date.now().toString(),
       name: name,
@@ -3132,15 +3184,17 @@
     showToast(state.batterySaver ? 'Battery saver enabled' : 'Battery saver disabled');
   });
 
+  // ============================================================
+  // CLEAR HISTORY - Actually clears persistent storage
+  // ============================================================
   $('btnClearHistory').addEventListener('click', async () => {
-    // Clear persistent storage
+    if (!confirm('Clear all history? This cannot be undone.')) return;
     await Promise.all([
       StorageEngine.clear('sessions'),
       StorageEngine.clear('events'),
       StorageEngine.clear('activities'),
       StorageEngine.clear('automation_history')
     ]);
-    // Reset in-memory state
     state.timeline = [];
     state.automationHistory = [];
     state.activityDurations = { Stationary: 0, Walking: 0, Running: 0, Vehicle: 0, Cycling: 0, 'Public Transport': 0 };
@@ -3172,11 +3226,18 @@
         StorageEngine.clear('events');
         StorageEngine.clear('activities');
         StorageEngine.clear('preferences');
+        // Clean up listeners
+        for (const cleanup of state._listenerCleanup) {
+          try { cleanup(); } catch (e) {}
+        }
         location.reload();
       }
     }
   });
 
+  // ============================================================
+  // PLACES - Use put() for stable IDs
+  // ============================================================
   $('setHomeBtn').addEventListener('click', () => {
     if (!state._locationEnabled) {
       showToast('Enable location first to use this feature');
@@ -3221,6 +3282,9 @@
     renderDurationDisplay();
   });
 
+  // ============================================================
+  // CALIBRATION
+  // ============================================================
   $('calibrateBtn').addEventListener('click', async () => {
     const result = await CalibrationEngine.startCalibration();
     if (result) {
@@ -3234,44 +3298,104 @@
     renderUI();
   });
 
-  $('gestStart').addEventListener('click', () => {
+  // ============================================================
+  // GESTURE RECORDING - With cancellation
+  // ============================================================
+  $('gestStart').addEventListener('click', function() {
+    if (state._gestureTimerId) {
+      showToast('Already recording. Cancel first.');
+      return;
+    }
+
     const name = $('gestName').value.trim() || 'Custom Gesture';
+    if (name.length > CONFIG.MAX_GESTURE_NAME_LENGTH) {
+      showToast(`Name too long (max ${CONFIG.MAX_GESTURE_NAME_LENGTH} characters)`);
+      return;
+    }
+
     const duration = Number($('gestDuration').value);
     const action = $('gestAction').value;
+
     state.recordingGesture = name;
     state.recordedSamples = [];
     $('gestStatus').textContent = `Recording... Move your phone now! (${duration / 1000}s)`;
-    setTimeout(() => {
-      state.recordingGesture = null;
-      const count = state.recordedSamples.length;
-      if (count > 5) {
-        state.gestures.push({ name, duration, action, samples: count, createdAt: Date.now() });
-        StorageEngine.add('gestures', { name, duration, action, samples: count, createdAt: Date.now() }).catch(() => {});
-        $('gestStatus').textContent = `Saved gesture "${name}" with ${count} motion samples.`;
-        renderGestures();
-        showToast(`Gesture "${name}" saved!`);
-        VibrationEngine.gestureDetected();
-      } else {
-        $('gestStatus').textContent = `Recording too short (${count} samples). Try again.`;
-        showToast('Gesture recording too short');
-      }
+    $('gestStart').style.display = 'none';
+    $('gestCancel').style.display = 'block';
+
+    // Cancel button
+    $('gestCancel').onclick = function() {
+      cancelGestureRecording();
+    };
+
+    state._gestureTimerId = setTimeout(() => {
+      finishGestureRecording();
     }, duration);
   });
 
-  // Sensor Lab
-  let labData = [];
-  let labRecording = false;
+  function cancelGestureRecording() {
+    if (state._gestureTimerId) {
+      clearTimeout(state._gestureTimerId);
+      state._gestureTimerId = null;
+    }
+    state.recordingGesture = null;
+    state.recordedSamples = [];
+    $('gestStatus').textContent = 'Recording cancelled.';
+    $('gestStart').style.display = 'block';
+    $('gestCancel').style.display = 'none';
+    showToast('Gesture recording cancelled');
+  }
 
-  $('labStart').addEventListener('click', () => {
-    if (labRecording) return;
-    const dur = Number($('labDuration').value);
-    labData = [];
-    labRecording = true;
-    $('labStatus').textContent = `Recording... 0/${dur}s`;
+  function finishGestureRecording() {
+    state._gestureTimerId = null;
+    state.recordingGesture = null;
+    const count = state.recordedSamples.length;
+    $('gestStart').style.display = 'block';
+    $('gestCancel').style.display = 'none';
+
+    if (count > 5) {
+      const name = $('gestName').value.trim() || 'Custom Gesture';
+      const action = $('gestAction').value;
+      state.gestures.push({ name, duration: Number($('gestDuration').value), action, samples: count, createdAt: Date.now() });
+      StorageEngine.add('gestures', { name, duration: Number($('gestDuration').value), action, samples: count, createdAt: Date.now() }).catch(() => {});
+      $('gestStatus').textContent = `Saved gesture "${name}" with ${count} motion samples.`;
+      renderGestures();
+      showToast(`Gesture "${name}" saved!`);
+      VibrationEngine.gestureDetected();
+    } else {
+      $('gestStatus').textContent = `Recording too short (${count} samples). Try again.`;
+      showToast('Gesture recording too short');
+    }
+  }
+
+  // ============================================================
+  // SENSOR LAB - With max duration and cancellation
+  // ============================================================
+  $('labStart').addEventListener('click', function() {
+    if (state._labRecording) {
+      showToast('Already recording. Cancel first.');
+      return;
+    }
+
+    let dur = Number($('labDuration').value);
+    if (dur > CONFIG.MAX_LAB_DURATION) {
+      dur = CONFIG.MAX_LAB_DURATION;
+      showToast(`Limiting to ${CONFIG.MAX_LAB_DURATION} seconds (max)`);
+    }
+
+    state._labData = [];
+    state._labRecording = true;
+    $('labStatus').textContent = `Recording... 0/${dur}s (0 samples)`;
+    $('labStart').style.display = 'none';
+    $('labCancel').style.display = 'block';
+
+    $('labCancel').onclick = function() {
+      cancelLabRecording();
+    };
+
     let elapsed = 0;
-    const interval = setInterval(() => {
+    state._labTimerId = setInterval(() => {
       elapsed++;
-      labData.push({
+      state._labData.push({
         t: Date.now(),
         ax: state.accel.x,
         ay: state.accel.y,
@@ -3280,40 +3404,59 @@
         speed: state.speed,
         steps: state.steps
       });
-      $('labStatus').textContent = `Recording... ${elapsed}/${dur}s (${labData.length} samples)`;
+      $('labStatus').textContent = `Recording... ${elapsed}/${dur}s (${state._labData.length} samples)`;
       if (elapsed >= dur) {
-        clearInterval(interval);
-        labRecording = false;
-        $('labStatus').textContent = `Done. ${labData.length} samples captured.`;
-        showToast('Sensor recording complete');
+        finishLabRecording();
       }
     }, 100);
   });
 
+  function cancelLabRecording() {
+    if (state._labTimerId) {
+      clearInterval(state._labTimerId);
+      state._labTimerId = null;
+    }
+    state._labRecording = false;
+    state._labData = [];
+    $('labStatus').textContent = 'Recording cancelled.';
+    $('labStart').style.display = 'block';
+    $('labCancel').style.display = 'none';
+    showToast('Sensor Lab recording cancelled');
+  }
+
+  function finishLabRecording() {
+    state._labRecording = false;
+    if (state._labTimerId) {
+      clearInterval(state._labTimerId);
+      state._labTimerId = null;
+    }
+    $('labStart').style.display = 'block';
+    $('labCancel').style.display = 'none';
+    const count = state._labData.length;
+    $('labStatus').textContent = `Done. ${count} samples captured.`;
+    showToast('Sensor recording complete');
+  }
+
+  // Lab exports
   $('labExportCsv').addEventListener('click', () => {
-    if (!labData.length) { showToast('No recording to export'); return; }
+    const data = state._labData;
+    if (!data || !data.length) { showToast('No recording to export'); return; }
     const header = 'timestamp,ax,ay,az,mag,speed,steps\n';
-    const rows = labData.map(r => `${r.t},${r.ax.toFixed(3)},${r.ay.toFixed(3)},${r.az.toFixed(3)},${r.mag.toFixed(3)},${r.speed},${r.steps}`).join('\n');
+    const rows = data.map(r => `${r.t},${r.ax.toFixed(3)},${r.ay.toFixed(3)},${r.az.toFixed(3)},${r.mag.toFixed(3)},${r.speed},${r.steps}`).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sensormind-lab-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `sensormind-lab-${Date.now()}.csv`);
   });
 
   $('labExportJson').addEventListener('click', () => {
-    if (!labData.length) { showToast('No recording to export'); return; }
-    const blob = new Blob([JSON.stringify(labData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sensormind-lab-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const data = state._labData;
+    if (!data || !data.length) { showToast('No recording to export'); return; }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `sensormind-lab-${Date.now()}.json`);
   });
 
+  // ============================================================
+  // SIMULATION CONTROLS
+  // ============================================================
   $('simOverride').addEventListener('change', e => {
     state.overrideMode = e.target.value;
     if (state.overrideMode !== 'auto' && state.overrideMode !== 'forceSim') {
@@ -3349,14 +3492,18 @@
     if (!state.debug) $('debugRaw').textContent = 'Enable the toggle above to stream raw → fused → classified values each tick.';
   });
 
-  // Service Worker Registration (PWA)
+  // ============================================================
+  // SERVICE WORKER (PWA)
+  // ============================================================
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
       .then(() => console.log('Service Worker registered'))
       .catch(() => console.log('Service Worker registration failed'));
   }
 
-  // PWA Installation
+  // ============================================================
+  // PWA INSTALLATION
+  // ============================================================
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -3367,7 +3514,7 @@
     installBtn.textContent = '📱 Install App';
     installBtn.style.margin = '8px 20px';
     installBtn.style.width = 'calc(100% - 40px)';
-    installBtn.onclick = () => {
+    installBtn.addEventListener('click', () => {
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choiceResult) => {
@@ -3375,7 +3522,7 @@
           deferredPrompt = null;
         });
       }
-    };
+    });
     document.getElementById('view-home').parentNode.insertBefore(installBtn, document.getElementById('view-home'));
   });
 
@@ -3383,7 +3530,9 @@
     showToast('🎉 SensorMind installed!');
   });
 
-  // Screen Lifecycle
+  // ============================================================
+  // SCREEN LIFECYCLE
+  // ============================================================
   document.addEventListener('visibilitychange', () => {
     state.screen.state = document.hidden ? 'Background' : 'Active';
     if (document.hidden) {
@@ -3416,8 +3565,8 @@
   updateGoalProgress();
   updateSoundUI();
 
-  console.log('SensorMind v3.2 - Security & Robustness Update');
-  console.log('✅ XSS Protection');
+  console.log('SensorMind v3.3 - Security & Reliability Hardening');
+  console.log('✅ XSS Protection - All user content rendered safely');
   console.log('✅ Split Permissions (Motion, Location, Notifications)');
   console.log('✅ Do Not Record properly stops processing');
   console.log('✅ Fall detection with multi-signal verification');
@@ -3427,6 +3576,11 @@
   console.log('✅ Calibration stored in IndexedDB');
   console.log('✅ Service Worker registered for PWA');
   console.log('✅ Accessibility improvements');
+  console.log('✅ Sensor Lab max duration & cancel');
+  console.log('✅ Gesture recording cancellation');
+  console.log('✅ Global error handling');
+  console.log('✅ Duplicate import detection');
+  console.log('✅ Import validation & normalization');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
