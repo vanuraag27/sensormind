@@ -6,6 +6,7 @@
 <title>SensorMind — Your phone knows more than you think</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
 <style>
   :root{
     --bg:#0B0E14; --panel:#12161F; --panel2:#171C27; --border:#232937;
@@ -265,13 +266,16 @@
   .transition-dot.Cycling{background:var(--violet);}
   .transition-dot.Public{background:var(--amber);}
 
-  /* Sound toggle button */
   .sound-toggle{display:flex;align-items:center;gap:8px;margin:4px 20px;padding:6px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--border);}
   .sound-toggle .label{font-size:11px;color:var(--text-dim);}
   .sound-toggle .status{font-size:11px;font-weight:600;}
   .sound-toggle .status.on{color:var(--green);}
   .sound-toggle .status.off{color:var(--red);}
   .sound-toggle .sound-btn{background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px;}
+
+  .calibration-status{font-size:11px;color:var(--text-dim);padding:4px 8px;background:var(--panel2);border-radius:4px;border:1px solid var(--border);}
+  .calibration-status .good{color:var(--green);}
+  .calibration-status .warn{color:var(--amber);}
 </style>
 </head>
 <body>
@@ -339,7 +343,7 @@
     <button class="btn-secondary" id="modeWalk">Walking</button>
   </div>
 
-  <!-- ADD USER GUIDE CARD HERE -->
+  <!-- User Guide Card -->
   <div class="card" style="margin:8px 20px;">
     <div class="section-title" style="margin:0 0 4px;">📖 User Guide</div>
     <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">
@@ -438,8 +442,10 @@
         <div class="stat-box"><div class="stat-num" id="statTransitions">0</div><div class="stat-label">Transitions today</div></div>
         <div class="stat-box"><div class="stat-num" id="statSteps">0</div><div class="stat-label">Total Steps</div></div>
         <div class="stat-box"><div class="stat-num" id="statActiveTime">0m</div><div class="stat-label">Active Time</div></div>
+        <div class="stat-box"><div class="stat-num" id="statDistance">0.0 km</div><div class="stat-label">Distance</div></div>
+        <div class="stat-box"><div class="stat-num" id="statSessions">0</div><div class="stat-label">Sessions Today</div></div>
       </div>
-      <div class="empty-note">Estimates derived from sensor data during this browser session.</div>
+      <div class="empty-note">Estimates derived from persistent sensor data.</div>
     </div>
   </div>
 
@@ -464,10 +470,15 @@
             <option value="BatteryLow">Battery low</option>
             <option value="ChargingStart">Charging started</option>
             <option value="Public Transport">Public Transport detected</option>
+            <option value="StepGoal">Step goal reached</option>
+            <option value="ArriveHome">Arrive Home</option>
+            <option value="LeaveHome">Leave Home</option>
+            <option value="ArriveWork">Arrive Work</option>
+            <option value="LeaveWork">Leave Work</option>
           </select>
         </div>
         <div class="builder-step">
-          <div class="builder-label">If (optional condition)</div>
+          <div class="builder-label">If (optional conditions)</div>
           <div class="builder-row">
             <select id="bCondType">
               <option value="none">No condition</option>
@@ -486,6 +497,9 @@
             <option value="track">Start activity tracking</option>
             <option value="record">Record event only</option>
             <option value="mode">Switch internal mode to match</option>
+            <option value="sound">Play sound alert</option>
+            <option value="vibrate">Vibrate device</option>
+            <option value="export">Export data</option>
           </select>
         </div>
         <div class="builder-step">
@@ -521,6 +535,8 @@
         <span class="ask-chip" data-q="How active was I today?">How active was I today?</span>
         <span class="ask-chip" data-q="Which sensors are active?">Which sensors are active?</span>
         <span class="ask-chip" data-q="What automations ran today?">Automations today?</span>
+        <span class="ask-chip" data-q="How far did I walk today?">How far did I walk?</span>
+        <span class="ask-chip" data-q="Show my weekly summary">Weekly summary</span>
       </div>
       <div id="askAnswer" class="ask-answer" style="display:none;"></div>
 
@@ -561,6 +577,19 @@
         <div class="play-title">Movement Pattern</div>
         <div class="play-desc">Move continuously to see live pattern detection.</div>
         <div class="play-readout" id="playMove" style="font-size:15px;">No pattern detected</div>
+      </div>
+
+      <div class="section-title">Sensor Calibration</div>
+      <div class="card">
+        <div class="status-row">
+          <span class="status-key">Calibration Status</span>
+          <span class="status-val" id="calibrationStatus"><span class="warn">Not calibrated</span></span>
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary" id="calibrateBtn">Start Calibration</button>
+          <button class="btn-secondary" id="resetCalibrationBtn">Reset Calibration</button>
+        </div>
+        <div id="calibrationProgress" style="font-size:11px;color:var(--text-dim);margin-top:6px;"></div>
       </div>
 
       <div class="section-title">My Gestures <small id="gestureCount">0 saved</small></div>
@@ -630,6 +659,10 @@
           <span class="status-key">Confidence History</span>
           <span class="status-val" id="confHistorySummary">—</span>
         </div>
+        <div class="status-row">
+          <span class="status-key">Calibration</span>
+          <span class="status-val" id="calibrationStatusSmall">Not calibrated</span>
+        </div>
       </div>
       <pre id="debugRaw">Enable the toggle above to stream raw → fused → classified values each tick.</pre>
     </div>
@@ -666,6 +699,20 @@
             <div style="font-size:11.5px;color:var(--text-dim)">Play sounds for walking, running &amp; falls</div>
           </div>
           <label class="switch"><input type="checkbox" id="toggleSound" checked><span class="slider"></span></label>
+        </div>
+        <div class="priv-item">
+          <div>
+            <div style="font-weight:500;color:var(--text-bright)">Vibration Feedback</div>
+            <div style="font-size:11.5px;color:var(--text-dim)">Haptic feedback for events</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="toggleVibration" checked><span class="slider"></span></label>
+        </div>
+        <div class="priv-item">
+          <div>
+            <div style="font-weight:500;color:var(--text-bright)">Browser Notifications</div>
+            <div style="font-size:11.5px;color:var(--text-dim)">Send notifications for important events</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="toggleNotifications" checked><span class="slider"></span></label>
         </div>
       </div>
 
@@ -748,154 +795,9 @@
     SLOW_TICK_INTERVAL: 1500,
     BATTERY_SAVER_THRESHOLD: 20,
     SIM_TIMEOUT: 3000,
-    STEP_GOAL_DEFAULT: 10000
-  };
-
-  // ============================================================
-  // SOUND ENGINE (Web Audio API)
-  // ============================================================
-  const SoundEngine = {
-    enabled: true,
-    ctx: null,
-    _walkingInterval: null,
-    _isWalking: false,
-    _lastStepSound: 0,
-    _fallSoundPlayed: false,
-
-    init() {
-      try {
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      } catch (e) {
-        console.warn('Web Audio not supported');
-        this.ctx = null;
-      }
-    },
-
-    // Play a simple footstep sound (short click/impact)
-    playStep() {
-      if (!this.enabled || !this.ctx) return;
-      const now = Date.now();
-      if (now - this._lastStepSound < 150) return;
-      this._lastStepSound = now;
-
-      try {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(180 + Math.random() * 60, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.06);
-
-        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
-
-        osc.start(this.ctx.currentTime);
-        osc.stop(this.ctx.currentTime + 0.06);
-      } catch (e) { /* ignore audio errors */ }
-    },
-
-    // Play a running sound (faster, higher pitch)
-    playRunStep() {
-      if (!this.enabled || !this.ctx) return;
-      const now = Date.now();
-      if (now - this._lastStepSound < 100) return;
-      this._lastStepSound = now;
-
-      try {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(280 + Math.random() * 80, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.04);
-
-        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
-
-        osc.start(this.ctx.currentTime);
-        osc.stop(this.ctx.currentTime + 0.04);
-      } catch (e) { /* ignore audio errors */ }
-    },
-
-    // Play fall sound (crash/thud)
-    playFall() {
-      if (!this.enabled || !this.ctx) return;
-      if (this._fallSoundPlayed) return;
-      this._fallSoundPlayed = true;
-      setTimeout(() => { this._fallSoundPlayed = false; }, 3000);
-
-      try {
-        // White noise burst for crash effect
-        const bufferSize = this.ctx.sampleRate * 0.4;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.08));
-        }
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
-
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
-
-        noise.connect(gain);
-        gain.connect(this.ctx.destination);
-        noise.start(this.ctx.currentTime);
-
-        // Add low frequency thud
-        const osc = this.ctx.createOscillator();
-        const g2 = this.ctx.createGain();
-        osc.connect(g2);
-        g2.connect(this.ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(80, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.3);
-        g2.gain.setValueAtTime(0.15, this.ctx.currentTime);
-        g2.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
-        osc.start(this.ctx.currentTime);
-        osc.stop(this.ctx.currentTime + 0.3);
-      } catch (e) { /* ignore audio errors */ }
-    },
-
-    // Play a simple ambient walking rhythm
-    startWalkingLoop() {
-      if (this._walkingInterval) return;
-      let stepCount = 0;
-      this._walkingInterval = setInterval(() => {
-        if (!this.enabled) return;
-        stepCount++;
-        // Alternate between left and right foot sounds
-        if (stepCount % 2 === 0) {
-          this.playStep();
-        } else {
-          // Slightly different sound for other foot
-          this.playStep();
-        }
-      }, 450); // ~2.2 steps per second
-    },
-
-    stopWalkingLoop() {
-      if (this._walkingInterval) {
-        clearInterval(this._walkingInterval);
-        this._walkingInterval = null;
-      }
-    },
-
-    setEnabled(val) {
-      this.enabled = val;
-      if (!val) this.stopWalkingLoop();
-    },
-
-    toggle() {
-      this.enabled = !this.enabled;
-      if (!this.enabled) this.stopWalkingLoop();
-      return this.enabled;
-    }
+    STEP_GOAL_DEFAULT: 10000,
+    CONFIRMATION_DELAY: 3000, // 3 seconds for activity confirmation
+    SESSION_SAVE_INTERVAL: 30000 // 30 seconds between session saves
   };
 
   // ============================================================
@@ -910,7 +812,7 @@
     confidence: 95,
     mode: 'NORMAL',
     accel: { x: 0, y: 0, z: 9.81, mag: 1.0, history: [] },
-    gyro: { alpha: 0, beta: 0, gamma: 0 },
+    gyro: { a: 0, b: 0, c: 0, history: [] },
     orientation: { alpha: 0, beta: 0, gamma: 0 },
     shakeIntensity: 0,
     steps: 0,
@@ -946,11 +848,915 @@
     stepGoal: CONFIG.STEP_GOAL_DEFAULT,
     debug: false,
     _lastActivitySound: '',
-    _soundCooldown: 0
+    _soundCooldown: 0,
+    _calibrated: false,
+    _calibrationBaseline: null,
+    _stepConfidence: 0,
+    _sessionId: null,
+    _lastSessionSave: 0,
+    _previousLocation: null,
+    _totalDistance: 0,
+    _activityDistances: {}
   };
 
   // ============================================================
-  // STORAGE ENGINE (In-Memory with IndexedDB fallback)
+  // SOUND ENGINE (Web Audio API)
+  // ============================================================
+  const SoundEngine = {
+    enabled: true,
+    ctx: null,
+    _walkingInterval: null,
+    _isWalking: false,
+    _lastStepSound: 0,
+    _fallSoundPlayed: false,
+
+    init() {
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        console.warn('Web Audio not supported');
+        this.ctx = null;
+      }
+    },
+
+    playStep() {
+      if (!this.enabled || !this.ctx) return;
+      const now = Date.now();
+      if (now - this._lastStepSound < 150) return;
+      this._lastStepSound = now;
+
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180 + Math.random() * 60, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.06);
+
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
+
+        osc.start(this.ctx.currentTime);
+        osc.stop(this.ctx.currentTime + 0.06);
+      } catch (e) { /* ignore audio errors */ }
+    },
+
+    playRunStep() {
+      if (!this.enabled || !this.ctx) return;
+      const now = Date.now();
+      if (now - this._lastStepSound < 100) return;
+      this._lastStepSound = now;
+
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(280 + Math.random() * 80, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.04);
+
+        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+
+        osc.start(this.ctx.currentTime);
+        osc.stop(this.ctx.currentTime + 0.04);
+      } catch (e) { /* ignore audio errors */ }
+    },
+
+    playFall() {
+      if (!this.enabled || !this.ctx) return;
+      if (this._fallSoundPlayed) return;
+      this._fallSoundPlayed = true;
+      setTimeout(() => { this._fallSoundPlayed = false; }, 3000);
+
+      try {
+        const bufferSize = this.ctx.sampleRate * 0.4;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.08));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+
+        noise.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(this.ctx.currentTime);
+
+        const osc = this.ctx.createOscillator();
+        const g2 = this.ctx.createGain();
+        osc.connect(g2);
+        g2.connect(this.ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.3);
+        g2.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        g2.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+        osc.start(this.ctx.currentTime);
+        osc.stop(this.ctx.currentTime + 0.3);
+      } catch (e) { /* ignore audio errors */ }
+    },
+
+    startWalkingLoop() {
+      if (this._walkingInterval) return;
+      let stepCount = 0;
+      this._walkingInterval = setInterval(() => {
+        if (!this.enabled) return;
+        stepCount++;
+        this.playStep();
+      }, 450);
+    },
+
+    stopWalkingLoop() {
+      if (this._walkingInterval) {
+        clearInterval(this._walkingInterval);
+        this._walkingInterval = null;
+      }
+    },
+
+    setEnabled(val) {
+      this.enabled = val;
+      if (!val) this.stopWalkingLoop();
+    },
+
+    toggle() {
+      this.enabled = !this.enabled;
+      if (!this.enabled) this.stopWalkingLoop();
+      return this.enabled;
+    }
+  };
+
+  // ============================================================
+  // VIBRATION ENGINE
+  // ============================================================
+  const VibrationEngine = {
+    _enabled: true,
+
+    isSupported() {
+      return 'vibrate' in navigator;
+    },
+
+    vibrate(pattern) {
+      if (!this._enabled) return;
+      if (!this.isSupported()) return;
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) { /* silently fail */ }
+    },
+
+    stepGoalReached() {
+      this.vibrate([100, 50, 100, 50, 100]);
+    },
+
+    automationTriggered() {
+      this.vibrate([50]);
+    },
+
+    fallWarning() {
+      this.vibrate([100, 50, 100, 50, 100, 50, 200]);
+    },
+
+    gestureDetected() {
+      this.vibrate([30, 30, 30]);
+    },
+
+    activityChanged() {
+      this.vibrate([20]);
+    },
+
+    setEnabled(enabled) {
+      this._enabled = enabled;
+    }
+  };
+
+  // ============================================================
+  // NOTIFICATION SYSTEM
+  // ============================================================
+  const NotificationSystem = {
+    _permission: 'default',
+    _enabled: true,
+
+    requestPermission() {
+      if (!('Notification' in window)) {
+        console.warn('Notifications not supported');
+        return Promise.resolve(false);
+      }
+      if (Notification.permission === 'granted') {
+        this._permission = 'granted';
+        return Promise.resolve(true);
+      }
+      if (Notification.permission === 'denied') {
+        this._permission = 'denied';
+        return Promise.resolve(false);
+      }
+      return Notification.requestPermission().then(result => {
+        this._permission = result;
+        return result === 'granted';
+      });
+    },
+
+    show(title, body, options = {}) {
+      if (!this._enabled) return;
+      if (this._permission !== 'granted') {
+        console.warn('Notification permission not granted');
+        return;
+      }
+      try {
+        const notification = new Notification(title, {
+          body: body,
+          icon: options.icon || null,
+          vibrate: options.vibrate || [100, 50, 100],
+          tag: options.tag || 'sensormind',
+          silent: options.silent || false
+        });
+        if (options.onClick) {
+          notification.onclick = options.onClick;
+        }
+        setTimeout(() => notification.close(), 5000);
+      } catch (e) {
+        console.warn('Notification error:', e);
+      }
+    },
+
+    showStepGoalReached(steps, goal) {
+      this.show(
+        '🎯 Step Goal Reached!',
+        `${steps} / ${goal} steps - Congratulations!`,
+        { vibrate: [100, 50, 100, 50, 100] }
+      );
+    },
+
+    showActivityDetected(activity, confidence) {
+      this.show(
+        `⚡ ${activity} Detected`,
+        `${activity} with ${confidence}% confidence`,
+        { vibrate: [50] }
+      );
+    },
+
+    showFallAlert() {
+      this.show(
+        '⚠️ Possible Fall Detected',
+        'Are you OK? Tap to dismiss.',
+        { 
+          vibrate: [100, 50, 100, 50, 100, 50, 200],
+          tag: 'fall-alert'
+        }
+      );
+    },
+
+    setEnabled(enabled) {
+      this._enabled = enabled;
+    }
+  };
+
+  // ============================================================
+  // IMPROVED ACTIVITY ENGINE
+  // ============================================================
+  const ImprovedActivityEngine = {
+    _buffer: [],
+    _confirmedActivity: 'Stationary',
+    _candidateActivity: null,
+    _candidateStartTime: 0,
+    _candidateConfidence: 0,
+    _confirmationDelay: CONFIG.CONFIRMATION_DELAY,
+
+    extractFeatures(magHistory, gyroHistory, gpsData) {
+      const recent = magHistory.slice(-40);
+      if (recent.length < 5) return null;
+
+      const features = {
+        mean: 0,
+        variance: 0,
+        rms: 0,
+        peak: 0,
+        jerk: 0,
+        stepFrequency: 0,
+        gyroVariance: 0,
+        speed: gpsData.speed || 0,
+        speedStability: 0,
+        duration: 0
+      };
+
+      features.mean = recent.reduce((a,b) => a+b, 0) / recent.length;
+      const mean = features.mean;
+      features.variance = recent.reduce((s,v) => s + Math.pow(v-mean, 2), 0) / recent.length;
+      features.rms = Math.sqrt(recent.reduce((s,v) => s + v*v, 0) / recent.length);
+      features.peak = Math.max(...recent.map(v => Math.abs(v-1)));
+
+      let jerkSum = 0;
+      for (let i = 1; i < recent.length; i++) {
+        jerkSum += Math.abs(recent[i] - recent[i-1]);
+      }
+      features.jerk = jerkSum / recent.length;
+
+      const stepTimes = state.stepTimes || [];
+      if (stepTimes.length > 2) {
+        const recentSteps = stepTimes.filter(t => Date.now() - t < 10000);
+        if (recentSteps.length > 1) {
+          features.stepFrequency = (recentSteps.length / 10) * 60;
+        }
+      }
+
+      if (gyroHistory && gyroHistory.length > 5) {
+        const gyroMag = gyroHistory.map(g => Math.abs(g.a) + Math.abs(g.b) + Math.abs(g.c));
+        const gyroMean = gyroMag.reduce((a,b) => a+b, 0) / gyroMag.length;
+        features.gyroVariance = gyroMag.reduce((s,v) => s + Math.pow(v-gyroMean, 2), 0) / gyroMag.length;
+      }
+
+      return features;
+    },
+
+    classify(features) {
+      if (!features) return { activity: 'Unknown', confidence: 0, scores: {} };
+
+      const scores = {
+        Stationary: 0.04,
+        Walking: 0.04,
+        Running: 0.04,
+        Cycling: 0.04,
+        Vehicle: 0.04,
+        'Public Transport': 0.02
+      };
+
+      if (features.variance < 0.0025 && features.stepFrequency < 15 && 
+          (features.speed === null || features.speed < 1.2)) {
+        scores.Stationary += 0.7;
+      }
+      if (features.gyroVariance < 2) scores.Stationary += 0.15;
+
+      if (features.variance > 0.005 && features.variance < 0.4 &&
+          features.stepFrequency >= 40 && features.stepFrequency <= 135) {
+        scores.Walking += 0.55;
+        if (features.stepFrequency > 60) scores.Walking += 0.15;
+      }
+      if (features.speed !== null && features.speed > 1.5 && features.speed < 8) {
+        scores.Walking += 0.25;
+      }
+      if (features.gyroVariance > 2 && features.gyroVariance < 20) {
+        scores.Walking += 0.05;
+      }
+
+      if (features.variance > 0.4 && features.variance < 1.5 &&
+          features.stepFrequency > 150) {
+        scores.Running += 0.6;
+      }
+      if (features.speed !== null && features.speed >= 7 && features.speed < 16) {
+        scores.Running += 0.2;
+      }
+
+      if (features.speed !== null && features.speed > 10 && features.speed <= 28) {
+        scores.Cycling += 0.55;
+      }
+      if (features.variance > 0.001 && features.variance < 0.02 && 
+          features.stepFrequency < 20) {
+        scores.Cycling += 0.15;
+      }
+
+      if (features.speed !== null && features.speed > 28) {
+        scores.Vehicle += Math.min(0.75, features.speed / 70);
+      }
+      if (features.speed !== null && features.speed > 28 && 
+          features.stepFrequency < 10) {
+        scores.Vehicle += 0.15;
+      }
+
+      if (features.speed !== null && features.speed > 15 && features.speed < 45 &&
+          features.peak > 0.5 && features.stepFrequency < 8) {
+        scores['Public Transport'] += 0.12;
+      }
+
+      const total = Object.values(scores).reduce((a,b) => a+b, 0) || 1;
+      Object.keys(scores).forEach(k => scores[k] = scores[k] / total);
+
+      const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
+      const winner = sorted[0];
+      const runnerUp = sorted[1] || ['', 0];
+
+      const separation = winner[1] - runnerUp[1];
+      const baseConfidence = Math.min(98, winner[1] * 100 + 10);
+      const confidence = Math.min(98, baseConfidence + separation * 20);
+
+      return {
+        activity: winner[0],
+        confidence: clamp(confidence, 30, 98),
+        scores: scores,
+        separation: separation
+      };
+    },
+
+    update(magHistory, gyroHistory, gpsData) {
+      const features = this.extractFeatures(magHistory, gyroHistory, gpsData);
+      if (!features) return state.activity;
+
+      const classification = this.classify(features);
+      const now = Date.now();
+
+      if (classification.activity !== this._candidateActivity) {
+        this._candidateActivity = classification.activity;
+        this._candidateStartTime = now;
+        this._candidateConfidence = classification.confidence;
+        this._candidateScores = classification.scores;
+        return state.activity;
+      }
+
+      if (now - this._candidateStartTime > this._confirmationDelay) {
+        if (classification.confidence > 40) {
+          this._confirmedActivity = classification.activity;
+          return {
+            key: classification.activity,
+            confidence: classification.confidence,
+            scores: classification.scores,
+            quality: classification.confidence > 80 ? 'High' : 
+                     classification.confidence > 60 ? 'Medium' : 'Low',
+            features: features
+          };
+        }
+      }
+
+      return {
+        key: this._confirmedActivity,
+        confidence: classification.confidence,
+        scores: classification.scores,
+        quality: 'Medium',
+        features: features
+      };
+    }
+  };
+
+  // ============================================================
+  // IMPROVED STEP ENGINE
+  // ============================================================
+  const ImprovedStepEngine = {
+    _buffer: [],
+    _baseline: 1.0,
+    _threshold: 0.15,
+    _lastStepTime: 0,
+    _stepCount: 0,
+    _cadence: 0,
+    _confidence: 0,
+    _walkingState: false,
+
+    updateBaseline(mag) {
+      this._buffer.push(mag);
+      if (this._buffer.length > 100) this._buffer.shift();
+      
+      if (this._buffer.length > 20) {
+        const sorted = [...this._buffer].sort((a,b) => a-b);
+        this._baseline = sorted[Math.floor(sorted.length/2)];
+        const noise = this._buffer.reduce((s,v) => s + Math.pow(v - this._baseline, 2), 0) / this._buffer.length;
+        this._threshold = Math.max(0.08, Math.min(0.25, Math.sqrt(noise) * 3));
+      }
+    },
+
+    detectStep(mag, timestamp) {
+      this.updateBaseline(mag);
+      
+      if (!this._walkingState) return false;
+
+      const deviation = Math.abs(mag - this._baseline);
+      const history = this._buffer;
+      if (history.length < 3) return false;
+      
+      const idx = history.length - 1;
+      const isValley = mag < history[idx-1] && mag < history[idx-2];
+      
+      if (isValley && deviation > this._threshold) {
+        const timeSinceLast = timestamp - this._lastStepTime;
+        
+        if (timeSinceLast > 273 && timeSinceLast < 2000) {
+          this._stepCount++;
+          this._lastStepTime = timestamp;
+          this._confidence = Math.min(95, this._confidence + 2);
+          this._cadence = Math.round(60 / (timeSinceLast / 1000));
+          return true;
+        }
+      }
+      
+      return false;
+    },
+
+    setWalkingState(isWalking) {
+      this._walkingState = isWalking;
+      if (!isWalking) {
+        this._confidence = Math.max(0, this._confidence - 5);
+      }
+    },
+
+    getStats() {
+      return {
+        steps: this._stepCount,
+        cadence: this._cadence,
+        confidence: Math.min(95, this._confidence),
+        walkingState: this._walkingState
+      };
+    },
+
+    reset() {
+      this._stepCount = 0;
+      this._cadence = 0;
+      this._confidence = 0;
+      this._buffer = [];
+      this._lastStepTime = 0;
+    }
+  };
+
+  // ============================================================
+  // SESSION ENGINE
+  // ============================================================
+  const SessionEngine = {
+    _currentSession: null,
+    _sessions: [],
+    _dailySummary: null,
+
+    startSession(activity) {
+      this._currentSession = {
+        id: Date.now(),
+        startTime: Date.now(),
+        activity: activity,
+        steps: 0,
+        distance: 0,
+        duration: 0,
+        maxSpeed: 0,
+        avgSpeed: 0,
+        confidence: 0,
+        events: []
+      };
+      return this._currentSession;
+    },
+
+    endSession() {
+      if (!this._currentSession) return null;
+      this._currentSession.endTime = Date.now();
+      this._currentSession.duration = this._currentSession.endTime - this._currentSession.startTime;
+      this._sessions.push(this._currentSession);
+      
+      StorageEngine.add('sessions', this._currentSession).catch(() => {});
+      
+      const session = this._currentSession;
+      this._currentSession = null;
+      return session;
+    },
+
+    updateSession(activity, steps, speed, confidence) {
+      if (!this._currentSession) {
+        this.startSession(activity);
+      }
+      
+      const session = this._currentSession;
+      if (session.activity !== activity) {
+        this.endSession();
+        this.startSession(activity);
+      }
+      
+      session.steps = Math.max(session.steps, steps);
+      session.maxSpeed = Math.max(session.maxSpeed, speed || 0);
+      session.confidence = confidence;
+      session.duration = Date.now() - session.startTime;
+      
+      if (speed) {
+        const count = (session._speedCount || 0) + 1;
+        session.avgSpeed = ((session.avgSpeed || 0) * (count-1) + speed) / count;
+        session._speedCount = count;
+      }
+      
+      return session;
+    },
+
+    async getTodaySummary() {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      try {
+        const allSessions = await StorageEngine.getAll('sessions');
+        const todaySessions = allSessions.filter(s => s.startTime >= today.getTime());
+        
+        const summary = {
+          date: today,
+          totalSteps: 0,
+          totalDistance: 0,
+          totalDuration: 0,
+          activities: {},
+          sessions: todaySessions
+        };
+        
+        todaySessions.forEach(s => {
+          summary.totalSteps += s.steps || 0;
+          summary.totalDistance += s.distance || 0;
+          summary.totalDuration += s.duration || 0;
+          summary.activities[s.activity] = (summary.activities[s.activity] || 0) + (s.duration || 0);
+        });
+        
+        this._dailySummary = summary;
+        return summary;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    async getWeeklySummary() {
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - 7);
+      weekStart.setHours(0, 0, 0, 0);
+      
+      try {
+        const allSessions = await StorageEngine.getAll('sessions');
+        const weekSessions = allSessions.filter(s => s.startTime >= weekStart.getTime());
+        
+        const dailyTotals = {};
+        weekSessions.forEach(s => {
+          const day = new Date(s.startTime).toDateString();
+          if (!dailyTotals[day]) {
+            dailyTotals[day] = { steps: 0, distance: 0, duration: 0 };
+          }
+          dailyTotals[day].steps += s.steps || 0;
+          dailyTotals[day].distance += s.distance || 0;
+          dailyTotals[day].duration += s.duration || 0;
+        });
+        
+        return {
+          weekStart: weekStart,
+          dailyTotals: dailyTotals,
+          totalSteps: Object.values(dailyTotals).reduce((s,d) => s + d.steps, 0),
+          totalDistance: Object.values(dailyTotals).reduce((s,d) => s + d.distance, 0)
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+  };
+
+  // ============================================================
+  // DISTANCE TRACKER
+  // ============================================================
+  const DistanceTracker = {
+    _lastPosition: null,
+    _totalDistance: 0,
+    _activityDistances: {},
+
+    updatePosition(lat, lon, speed, accuracy) {
+      if (accuracy && accuracy > 50) return;
+      
+      const now = Date.now();
+      const position = { lat, lon, speed, accuracy, timestamp: now };
+      
+      if (this._lastPosition) {
+        const distance = haversine(
+          this._lastPosition.lat, this._lastPosition.lon,
+          lat, lon
+        );
+        
+        const timeDiff = (now - this._lastPosition.timestamp) / 1000;
+        const maxPlausibleSpeed = 100;
+        const maxDistance = (maxPlausibleSpeed / 3.6) * timeDiff;
+        
+        if (distance < maxDistance && distance > 0.5) {
+          this._totalDistance += distance;
+          const activity = state.currentActivity || 'Unknown';
+          this._activityDistances[activity] = (this._activityDistances[activity] || 0) + distance;
+        }
+      }
+      
+      this._lastPosition = position;
+    },
+
+    getTotalDistance() {
+      return this._totalDistance;
+    },
+
+    getActivityDistance(activity) {
+      return this._activityDistances[activity] || 0;
+    },
+
+    reset() {
+      this._totalDistance = 0;
+      this._activityDistances = {};
+      this._lastPosition = null;
+    }
+  };
+
+  // ============================================================
+  // SMART SUGGESTIONS ENGINE
+  // ============================================================
+  const SuggestionsEngine = {
+    _suggestions: [],
+    _dismissed: {},
+
+    async analyze() {
+      const suggestions = [];
+      
+      const activityPattern = await this.detectActivityPatterns();
+      if (activityPattern) {
+        suggestions.push({
+          type: 'activity_pattern',
+          title: `You frequently ${activityPattern.activity} around ${activityPattern.hour}:00`,
+          action: 'Create Automation',
+          data: {
+            when: activityPattern.activity,
+            condition: 'timeAfter',
+            value: activityPattern.hour
+          }
+        });
+      }
+
+      const todaySummary = await SessionEngine.getTodaySummary();
+      if (todaySummary) {
+        const goal = state.stepGoal || 10000;
+        const progress = (todaySummary.totalSteps / goal) * 100;
+        
+        if (progress < 30 && new Date().getHours() > 14) {
+          suggestions.push({
+            type: 'step_goal',
+            title: `You've only reached ${Math.round(progress)}% of your step goal today`,
+            action: 'Remind me',
+            data: { goal: goal, current: todaySummary.totalSteps }
+          });
+        }
+        
+        if (progress > 80 && progress < 100) {
+          suggestions.push({
+            type: 'step_goal_near',
+            title: `You're ${Math.round(100-progress)}% away from your step goal!`,
+            action: 'Walk now',
+            data: { goal: goal, current: todaySummary.totalSteps }
+          });
+        }
+      }
+
+      if (state.currentActivity === 'Stationary' && 
+          state.activityDurations.Stationary > 3600) {
+        suggestions.push({
+          type: 'inactivity',
+          title: 'You\'ve been stationary for over an hour',
+          action: 'Take a walk',
+          data: { duration: Math.round(state.activityDurations.Stationary / 60) }
+        });
+      }
+
+      this._suggestions = suggestions.filter(s => !this._dismissed[s.type]);
+      return this._suggestions;
+    },
+
+    async detectActivityPatterns() {
+      try {
+        const events = await StorageEngine.getAll('events');
+        const activityEvents = events.filter(e => e.type === 'activity_started');
+        
+        const patterns = {};
+        activityEvents.forEach(e => {
+          const hour = new Date(e.timestamp).getHours();
+          const key = `${e.activity}@${hour}`;
+          patterns[key] = (patterns[key] || 0) + 1;
+        });
+
+        for (const [key, count] of Object.entries(patterns)) {
+          if (count >= 3) {
+            const [activity, hour] = key.split('@');
+            return { activity, hour: parseInt(hour), count };
+          }
+        }
+        
+        return null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    dismiss(type) {
+      this._dismissed[type] = true;
+      this._suggestions = this._suggestions.filter(s => s.type !== type);
+    },
+
+    getSuggestions() {
+      return this._suggestions;
+    }
+  };
+
+  // ============================================================
+  // SENSOR CALIBRATION
+  // ============================================================
+  const CalibrationEngine = {
+    _calibrated: false,
+    _baseline: {
+      gravity: 9.81,
+      noiseFloor: 0.02,
+      offset: { x: 0, y: 0, z: 0 }
+    },
+
+    async startCalibration() {
+      showToast('Place phone on flat surface and keep still for 5 seconds');
+      
+      const samples = [];
+      const duration = 5000;
+      const startTime = Date.now();
+      
+      return new Promise((resolve) => {
+        const handler = (e) => {
+          const acc = e.accelerationIncludingGravity || e.acceleration;
+          if (!acc || acc.x === null) return;
+          
+          samples.push({
+            x: acc.x || 0,
+            y: acc.y || 0,
+            z: acc.z || 0
+          });
+          
+          const elapsed = Date.now() - startTime;
+          if (elapsed > duration) {
+            window.removeEventListener('devicemotion', handler);
+            resolve(this.calculateBaseline(samples));
+          }
+        };
+        
+        window.addEventListener('devicemotion', handler);
+      });
+    },
+
+    calculateBaseline(samples) {
+      if (samples.length < 10) {
+        showToast('Calibration failed - insufficient samples');
+        return null;
+      }
+
+      const mean = samples.reduce((acc, s) => {
+        acc.x += s.x;
+        acc.y += s.y;
+        acc.z += s.z;
+        return acc;
+      }, { x: 0, y: 0, z: 0 });
+      
+      mean.x /= samples.length;
+      mean.y /= samples.length;
+      mean.z /= samples.length;
+
+      const gravity = Math.sqrt(mean.x*mean.x + mean.y*mean.y + mean.z*mean.z);
+      
+      const variance = samples.reduce((acc, s) => {
+        acc.x += Math.pow(s.x - mean.x, 2);
+        acc.y += Math.pow(s.y - mean.y, 2);
+        acc.z += Math.pow(s.z - mean.z, 2);
+        return acc;
+      }, { x: 0, y: 0, z: 0 });
+      
+      variance.x /= samples.length;
+      variance.y /= samples.length;
+      variance.z /= samples.length;
+      
+      const noise = Math.sqrt((variance.x + variance.y + variance.z) / 3);
+
+      this._baseline = {
+        gravity: gravity,
+        noiseFloor: noise,
+        offset: {
+          x: mean.x,
+          y: mean.y,
+          z: mean.z
+        }
+      };
+      
+      this._calibrated = true;
+      this.updateThresholds();
+      
+      showToast('Calibration complete!');
+      return this._baseline;
+    },
+
+    updateThresholds() {
+      const noise = this._baseline.noiseFloor;
+      CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = Math.max(0.03, noise * 100);
+      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = Math.max(0.04, noise * 150);
+    },
+
+    getBaseline() {
+      return this._baseline;
+    },
+
+    isCalibrated() {
+      return this._calibrated;
+    },
+
+    reset() {
+      this._calibrated = false;
+      this._baseline = {
+        gravity: 9.81,
+        noiseFloor: 0.02,
+        offset: { x: 0, y: 0, z: 0 }
+      };
+      CONFIG.ACTIVITY_THRESHOLDS.STATIONARY_MAX_VAR = 0.06;
+      CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR = 0.06;
+    }
+  };
+
+  // ============================================================
+  // STORAGE ENGINE (IndexedDB)
   // ============================================================
   const StorageEngine = {
     _db: null,
@@ -965,10 +1771,11 @@
           return;
         }
         try {
-          const req = indexedDB.open('sensormind_db', 2);
+          const req = indexedDB.open('sensormind_db', 3);
           req.onupgradeneeded = (e) => {
             const db = e.target.result;
-            ['automations', 'automation_history', 'gestures', 'places', 'preferences'].forEach(s => {
+            const stores = ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities'];
+            stores.forEach(s => {
               if (!db.objectStoreNames.contains(s)) {
                 db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
               }
@@ -1119,48 +1926,17 @@
   });
 
   // ============================================================
-  // ACTIVITY ENGINE
-  // ============================================================
-  function getVariance(arr) {
-    if (arr.length < 2) return 0;
-    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
-  }
-
-  function classifyActivity(mag, variance, speed) {
-    if (speed > CONFIG.ACTIVITY_THRESHOLDS.VEHICLE_SPEED_MIN) {
-      return { activity: 'Vehicle', confidence: 95 };
-    }
-    if (speed > CONFIG.ACTIVITY_THRESHOLDS.PUBLIC_TRANSPORT_SPEED_MIN &&
-        speed < CONFIG.ACTIVITY_THRESHOLDS.PUBLIC_TRANSPORT_SPEED_MAX &&
-        variance < 0.1 && variance > 0.01) {
-      return { activity: 'Public Transport', confidence: 70 };
-    }
-    if (speed > CONFIG.ACTIVITY_THRESHOLDS.CYCLING_SPEED_MIN &&
-        speed < CONFIG.ACTIVITY_THRESHOLDS.CYCLING_SPEED_MAX &&
-        variance > 0.01 && variance < 0.1) {
-      return { activity: 'Cycling', confidence: 85 };
-    }
-    if (variance > CONFIG.ACTIVITY_THRESHOLDS.RUNNING_MIN_VAR &&
-        variance < CONFIG.ACTIVITY_THRESHOLDS.RUNNING_MAX_VAR) {
-      const conf = Math.min(98, Math.round(variance * 120) + 20);
-      return { activity: 'Running', confidence: clamp(conf, 70, 98) };
-    }
-    if (variance > CONFIG.ACTIVITY_THRESHOLDS.WALKING_MIN_VAR &&
-        variance < CONFIG.ACTIVITY_THRESHOLDS.WALKING_MAX_VAR) {
-      const conf = Math.min(95, Math.round(variance * 350) + 20);
-      return { activity: 'Walking', confidence: clamp(conf, 60, 95) };
-    }
-    return { activity: 'Stationary', confidence: 92 };
-  }
-
-  // ============================================================
   // SENSOR MANAGER
   // ============================================================
   function initSensors() {
     state.isLive = true;
     $('gate').classList.add('hidden');
     SoundEngine.init();
+
+    // Request notification permission
+    NotificationSystem.requestPermission().then(() => {
+      NotificationSystem.setEnabled(document.getElementById('toggleNotifications').checked);
+    });
 
     if ('DeviceMotionEvent' in window) {
       if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -1212,9 +1988,35 @@
           state.sensorHealth.gps.quality = 0.85;
           state.sensorHealth.gps.lastUpdate = Date.now();
           state.sensorHealth.gps.stale = false;
+          
+          // Update distance
+          if (pos.coords.latitude && pos.coords.longitude) {
+            DistanceTracker.updatePosition(
+              pos.coords.latitude, pos.coords.longitude,
+              state.speed, pos.coords.accuracy
+            );
+          }
+          
           if (state.places.home && pos.coords) {
-            const d = haversine(pos.coords.latitude, pos.coords.longitude, state.places.home.lat, state.places.home.lon);
-            if (d < 150) { /* At home */ }
+            const d = haversine(pos.coords.latitude, pos.coords.longitude, 
+              state.places.home.lat, state.places.home.lon);
+            if (d < 150) {
+              triggerAutomation('ArriveHome');
+            } else if (state._wasHome && d > 200) {
+              triggerAutomation('LeaveHome');
+            }
+            state._wasHome = d < 150;
+          }
+          
+          if (state.places.work && pos.coords) {
+            const d = haversine(pos.coords.latitude, pos.coords.longitude,
+              state.places.work.lat, state.places.work.lon);
+            if (d < 150) {
+              triggerAutomation('ArriveWork');
+            } else if (state._wasWork && d > 200) {
+              triggerAutomation('LeaveWork');
+            }
+            state._wasWork = d < 150;
           }
         },
         () => { state.speed = 0; },
@@ -1256,6 +2058,13 @@
       state.accel.y = y;
       state.accel.z = z;
       state.accel.mag = mag;
+
+      // Store gyro history
+      const rr = e.rotationRate;
+      if (rr && rr.alpha !== null) {
+        state.gyro.history.push({ a: rr.alpha || 0, b: rr.beta || 0, c: rr.gamma || 0 });
+        if (state.gyro.history.length > 100) state.gyro.history.shift();
+      }
 
       processAccel(mag);
     });
@@ -1330,6 +2139,7 @@
     state.shakeIntensity = delta;
     if (delta > CONFIG.ACTIVITY_THRESHOLDS.SHAKE_THRESHOLD) {
       triggerAutomation('Shake');
+      VibrationEngine.vibrate([50, 30, 50]);
       addTimelineEvent('Shake detected', `Intensity: ${delta.toFixed(2)}g`);
     }
 
@@ -1341,8 +2151,10 @@
     // Fall Detection
     if (mag > CONFIG.ACTIVITY_THRESHOLDS.FALL_THRESHOLD && !state.fallTriggered) {
       state.fallTriggered = true;
-      // Play fall sound
       SoundEngine.playFall();
+      VibrationEngine.fallWarning();
+      NotificationSystem.showFallAlert();
+      
       setTimeout(() => {
         const recent = state.accel.history.slice(-10);
         const avgRest = recent.reduce((a, b) => a + b, 0) / recent.length;
@@ -1356,23 +2168,34 @@
     }
 
     // Step Detection
-    if (mag > CONFIG.ACTIVITY_THRESHOLDS.STEP_PEAK_MIN &&
-        mag < CONFIG.ACTIVITY_THRESHOLDS.STEP_PEAK_MAX &&
-        variance > 0.04 &&
-        mag - (state.accel.history[state.accel.history.length - 2] || 0) > 0.05) {
-      const now = Date.now();
-      if ((now - state._lastStepTime) > CONFIG.ACTIVITY_THRESHOLDS.STEP_INTERVAL_MIN) {
-        state.steps++;
-        state._lastStepTime = now;
-        updateGoalProgress();
-
-        // Play step sound based on activity
-        if (state.currentActivity === 'Running') {
-          SoundEngine.playRunStep();
-        } else if (state.currentActivity === 'Walking') {
-          SoundEngine.playStep();
-        }
+    const stepResult = ImprovedStepEngine.detectStep(mag, Date.now());
+    if (stepResult) {
+      state.steps++;
+      updateGoalProgress();
+      
+      if (state.currentActivity === 'Running') {
+        SoundEngine.playRunStep();
+      } else if (state.currentActivity === 'Walking') {
+        SoundEngine.playStep();
       }
+      
+      // Check step goal
+      const goal = state.stepGoal || CONFIG.STEP_GOAL_DEFAULT;
+      if (state.steps >= goal && !state._goalReached) {
+        state._goalReached = true;
+        triggerAutomation('StepGoal');
+        VibrationEngine.stepGoalReached();
+        NotificationSystem.showStepGoalReached(state.steps, goal);
+      }
+    }
+
+    // Update walking state
+    const isWalking = state.currentActivity === 'Walking' || state.currentActivity === 'Running';
+    ImprovedStepEngine.setWalkingState(isWalking);
+    if (isWalking && SoundEngine.enabled) {
+      SoundEngine.startWalkingLoop();
+    } else {
+      SoundEngine.stopWalkingLoop();
     }
 
     // Activity Classification
@@ -1381,14 +2204,26 @@
       return;
     }
 
-    const result = classifyActivity(mag, variance, state.speed);
-    setActivity(result.activity, result.confidence);
+    const result = ImprovedActivityEngine.update(
+      state.accel.history,
+      state.gyro.history,
+      { speed: state.speed }
+    );
+    
+    if (result && result.key) {
+      setActivity(result.key, result.confidence || 90);
+    }
+  }
+
+  function getVariance(arr) {
+    if (arr.length < 2) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
   }
 
   function setActivity(newAct, conf) {
     if (state.dnr) return;
 
-    // Update duration tracking
     const now = Date.now();
     const elapsed = (now - state.activityStartTime) / 1000;
     if (elapsed > 0.5) {
@@ -1396,7 +2231,6 @@
     }
     state.activityStartTime = now;
 
-    // Smooth confidence
     if (state.currentActivity === newAct) {
       state.confidence = Math.min(100, (state.confidence + conf) / 2 + 10);
     } else {
@@ -1404,36 +2238,32 @@
     }
     state.confidence = clamp(state.confidence, 10, 100);
 
-    // Track confidence history
     state.confidenceHistory.push({ time: now, confidence: state.confidence, activity: newAct });
     if (state.confidenceHistory.length > 100) state.confidenceHistory.shift();
 
     state.activityCounts[newAct] = (state.activityCounts[newAct] || 0) + 1;
 
-    // Handle sound effects for activity changes
-    const soundActivities = ['Walking', 'Running'];
     const oldAct = state.currentActivity;
 
     if (state.currentActivity !== newAct) {
       state.currentActivity = newAct;
-      addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence. Variance: ${getVariance(state.accel.history.slice(-20)).toFixed(4)}`);
+      addTimelineEvent(`Activity changed to ${newAct}`, `From ${oldAct} with ${Math.round(state.confidence)}% confidence.`);
       triggerAutomation(newAct);
       renderTransitionChart();
       renderDurationDisplay();
       detectPatterns();
-
-      // Sound effect on activity change
-      if (soundActivities.includes(newAct) && SoundEngine.enabled) {
-        if (newAct === 'Walking') {
-          SoundEngine.startWalkingLoop();
-        } else if (newAct === 'Running') {
-          SoundEngine.startWalkingLoop();
-        }
-      } else {
-        SoundEngine.stopWalkingLoop();
+      
+      // End session and start new one
+      SessionEngine.endSession();
+      SessionEngine.startSession(newAct);
+      
+      // Vibrate on activity change
+      VibrationEngine.activityChanged();
+      
+      // Notification for activity change
+      if (['Walking', 'Running', 'Vehicle'].includes(newAct)) {
+        NotificationSystem.showActivityDetected(newAct, Math.round(state.confidence));
       }
-
-      // If fall detected, play fall sound (already handled in processAccel)
     }
 
     renderDailySummary();
@@ -1552,6 +2382,7 @@
     if (rule.then === 'notify') {
       showToast(`⚡ ${rule.name}: Triggered!`);
       addTimelineEvent(`⚡ ${rule.name}`, 'Automation notification');
+      NotificationSystem.show(`⚡ ${rule.name}`, `Automation triggered: ${rule.when}`);
     } else if (rule.then === 'mode') {
       state.mode = 'REST';
       $('currentModeVal').textContent = 'REST';
@@ -1562,7 +2393,18 @@
       addTimelineEvent(`Tracking started`, rule.name);
     } else if (rule.then === 'record') {
       addTimelineEvent(`Rule Execution`, rule.name);
+    } else if (rule.then === 'sound') {
+      SoundEngine.playStep();
+      showToast(`🔊 Sound alert played`);
+    } else if (rule.then === 'vibrate') {
+      VibrationEngine.automationTriggered();
+      showToast(`📳 Vibration triggered`);
+    } else if (rule.then === 'export') {
+      exportData();
+      showToast(`📤 Data exported`);
     }
+    
+    VibrationEngine.automationTriggered();
   }
 
   function renderRules() {
@@ -1678,6 +2520,37 @@
   }
 
   // ============================================================
+  // EXPORT DATA
+  // ============================================================
+  function exportData() {
+    const data = {
+      timestamp: new Date().toISOString(),
+      state: {
+        currentActivity: state.currentActivity,
+        confidence: state.confidence,
+        steps: state.steps,
+        speed: state.speed,
+        battery: state.battery,
+        timeline: state.timeline,
+        automations: state.automations,
+        automationHistory: state.automationHistory,
+        gestures: state.gestures,
+        activityCounts: state.activityCounts,
+        activityDurations: state.activityDurations,
+        distance: DistanceTracker.getTotalDistance(),
+        sessions: state._sessions || []
+      }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sensormind-session-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ============================================================
   // GESTURE ENGINE
   // ============================================================
   function renderGestures() {
@@ -1781,23 +2654,26 @@
     $('statTransitions').textContent = state.timeline.filter(t => t.label.includes('Activity changed')).length;
     $('statSteps').textContent = state.steps;
 
-    // Active time calculation
     const activeTime = Object.entries(state.activityDurations)
       .filter(([k]) => k !== 'Stationary')
       .reduce((s, [, v]) => s + v, 0);
     const activeMins = Math.round(activeTime / 60);
     $('statActiveTime').textContent = activeMins + 'm';
 
-    // Longest period
     const longest = Object.entries(state.activityDurations).sort((a, b) => b[1] - a[1])[0];
     $('statLongest').textContent = longest ? `${Math.round(longest[1] / 60)}m ${longest[0]}` : '—';
 
-    // Insights
+    // Distance
+    const distanceKm = DistanceTracker.getTotalDistance() / 1000;
+    $('statDistance').textContent = distanceKm.toFixed(1) + ' km';
+
+    // Session count
+    $('statSessions').textContent = state._sessions ? state._sessions.length : 0;
+
     const dominant = Object.keys(state.activityCounts).reduce((a, b) => state.activityCounts[a] > state.activityCounts[b] ? a : b);
     $('insightMovement').textContent = `Dominant activity: ${dominant}. ${state.steps} steps detected.`;
-    $('insightTravel').textContent = state.speed > 0 ? `Moving at ${state.speed} km/h (max speed).` : `No significant travel logged yet.`;
+    $('insightTravel').textContent = state.speed > 0 ? `Moving at ${state.speed} km/h (max speed). Distance: ${distanceKm.toFixed(1)} km.` : `No significant travel logged yet.`;
 
-    // Pattern Grid
     const patternLabels = { 'Stationary': 'Resting', 'Walking': 'Walking', 'Running': 'Running', 'Vehicle': 'Driving', 'Cycling': 'Cycling', 'Public Transport': 'Transit' };
     $('patternGrid').innerHTML = `
       <div class="status-row"><span class="status-key">Most Common</span><span class="status-val">${patternLabels[dominant] || dominant}</span></div>
@@ -1806,20 +2682,29 @@
       <div class="status-row"><span class="status-key">Work saved</span><span class="status-val ${state.places.work ? 'good' : 'na'}">${state.places.work ? 'Yes' : 'No'}</span></div>
     `;
 
-    // Storage Status
     const storageStatus = $('storageStatus');
     if (storageStatus) {
       const isMem = StorageEngine.isMemFallback();
       storageStatus.innerHTML = `Storage: <span class="${isMem ? 'warn' : 'ok'}">${isMem ? 'Memory (session only)' : 'IndexedDB (persistent)'}</span>`;
     }
 
-    // Confidence History Summary
     if (state.confidenceHistory.length > 0) {
       const avg = state.confidenceHistory.reduce((s, h) => s + h.confidence, 0) / state.confidenceHistory.length;
       $('confHistorySummary').textContent = `${state.confidenceHistory.length} samples, avg ${Math.round(avg)}%`;
     }
 
-    // Debug
+    // Calibration status
+    const calStatus = $('calibrationStatus');
+    if (calStatus) {
+      calStatus.innerHTML = CalibrationEngine.isCalibrated() 
+        ? '<span class="good">Calibrated ✓</span>' 
+        : '<span class="warn">Not calibrated</span>';
+    }
+    const calStatusSmall = $('calibrationStatusSmall');
+    if (calStatusSmall) {
+      calStatusSmall.textContent = CalibrationEngine.isCalibrated() ? 'Calibrated ✓' : 'Not calibrated';
+    }
+
     if (state.debug) {
       $('debugRaw').textContent = JSON.stringify({
         activity: state.currentActivity,
@@ -1828,14 +2713,15 @@
         variance: getVariance(state.accel.history.slice(-20)).toFixed(4),
         speed: state.speed,
         steps: state.steps,
+        distance: (DistanceTracker.getTotalDistance() / 1000).toFixed(2),
         battery: state.battery,
         mode: state.mode,
         overrideMode: state.overrideMode,
         isSim: state.isSim,
         dnr: state.dnr,
-        durations: state.activityDurations,
-        sensorHealth: state.sensorHealth,
-        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb'
+        calibrated: CalibrationEngine.isCalibrated(),
+        storage: StorageEngine.isMemFallback() ? 'memory' : 'indexeddb',
+        sessions: state._sessions ? state._sessions.length : 0
       }, null, 2);
     }
 
@@ -1857,11 +2743,13 @@
       .filter(([k]) => k !== 'Stationary')
       .reduce((s, [, v]) => s + v, 0);
 
+    const distanceKm = DistanceTracker.getTotalDistance() / 1000;
+
     $('dailySummary').innerHTML = `
       <div class="status-row"><span class="status-key">Steps</span><span class="status-val">${state.steps}</span></div>
       <div class="status-row"><span class="status-key">Active Time</span><span class="status-val">${Math.round(activeTime / 60)} minutes</span></div>
+      <div class="status-row"><span class="status-key">Distance</span><span class="status-val">${distanceKm.toFixed(1)} km</span></div>
       <div class="status-row"><span class="status-key">Top Activity</span><span class="status-val">${top || 'No data'}</span></div>
-      <div class="status-row"><span class="status-key">Transitions</span><span class="status-val">${state.timeline.filter(t => t.label.includes('Activity changed')).length}</span></div>
     `;
   }
 
@@ -1978,7 +2866,6 @@
     SoundEngine.setEnabled(!SoundEngine.enabled);
     updateSoundUI();
     showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
-    // Also update settings toggle
     const toggle = $('toggleSound');
     if (toggle) toggle.checked = SoundEngine.enabled;
   }
@@ -1987,6 +2874,7 @@
   // MAIN LOOP
   // ============================================================
   function startEngine() {
+    // Load automations
     StorageEngine.getAll('automations').then(autos => {
       if (autos && autos.length) {
         state.automations = autos;
@@ -1994,7 +2882,8 @@
         state.automations = [
           { id: '1', name: 'Fall Safety Alert', when: 'Fall', condType: 'none', condVal: 0, then: 'notify', cooldown: 30, lastRun: 0, active: true },
           { id: '2', name: 'Low Battery Auto-Rest', when: 'BatteryLow', condType: 'none', condVal: 0, then: 'mode', cooldown: 60, lastRun: 0, active: true },
-          { id: '3', name: 'Driving Mode', when: 'Vehicle', condType: 'confidence', condVal: 70, then: 'mode', cooldown: 30, lastRun: 0, active: true }
+          { id: '3', name: 'Driving Mode', when: 'Vehicle', condType: 'confidence', condVal: 70, then: 'mode', cooldown: 30, lastRun: 0, active: true },
+          { id: '4', name: 'Step Goal Alert', when: 'StepGoal', condType: 'none', condVal: 0, then: 'notify', cooldown: 60, lastRun: 0, active: true }
         ];
         state.automations.forEach(a => StorageEngine.add('automations', a));
       }
@@ -2007,11 +2896,13 @@
       renderRules();
     });
 
+    // Load gestures
     StorageEngine.getAll('gestures').then(gs => {
       if (gs && gs.length) state.gestures = gs;
       renderGestures();
     }).catch(() => renderGestures());
 
+    // Load places
     StorageEngine.getAll('places').then(places => {
       places.forEach(p => {
         if (p.name === 'Home') state.places.home = { lat: p.lat, lon: p.lon };
@@ -2020,6 +2911,19 @@
       renderPlaces();
     }).catch(() => renderPlaces());
 
+    // Load sessions
+    StorageEngine.getAll('sessions').then(sessions => {
+      if (sessions && sessions.length) {
+        state._sessions = sessions;
+        // Get today's summary
+        SessionEngine.getTodaySummary().then(summary => {
+          if (summary) {
+            state.steps = summary.totalSteps;
+          }
+        });
+      }
+    }).catch(() => {});
+
     renderTimeline();
     renderAutomationHistory();
     renderDailySummary();
@@ -2027,6 +2931,19 @@
     renderTransitionChart();
     updateGoalProgress();
     updateSoundUI();
+
+    // Restore calibration state
+    const savedCalibration = localStorage.getItem('sensormind_calibration');
+    if (savedCalibration) {
+      try {
+        const cal = JSON.parse(savedCalibration);
+        CalibrationEngine._calibrated = cal.calibrated;
+        if (cal.baseline) {
+          CalibrationEngine._baseline = cal.baseline;
+          CalibrationEngine.updateThresholds();
+        }
+      } catch (e) {}
+    }
 
     setInterval(() => {
       if (state.batterySaver && state.battery.level < CONFIG.BATTERY_SAVER_THRESHOLD) {
@@ -2052,6 +2969,17 @@
         }
       }
 
+      // Save session periodically
+      if (state._currentSession && Date.now() - state._lastSessionSave > CONFIG.SESSION_SAVE_INTERVAL) {
+        state._lastSessionSave = Date.now();
+        SessionEngine.updateSession(
+          state.currentActivity,
+          state.steps,
+          state.speed,
+          state.confidence
+        );
+      }
+
     }, CONFIG.TICK_INTERVAL);
 
     setInterval(() => {
@@ -2061,6 +2989,26 @@
       renderDailySummary();
       renderDurationDisplay();
       updateGoalProgress();
+      
+      // Check for smart suggestions
+      SuggestionsEngine.analyze().then(suggestions => {
+        if (suggestions.length > 0 && !state._suggestionsShown) {
+          state._suggestionsShown = true;
+          const area = $('suggestionArea');
+          if (area) {
+            area.innerHTML = suggestions.map(s => `
+              <div class="suggestion-box">
+                <div class="suggest-label" style="color:var(--violet)">💡 Suggestion</div>
+                <div class="suggest-text">${s.title}</div>
+                <div class="suggest-actions">
+                  <button class="btn-secondary" onclick="window.acceptSuggestion('${s.type}')">${s.action}</button>
+                  <button class="btn-secondary" onclick="window.dismissSuggestion('${s.type}')">Dismiss</button>
+                </div>
+              </div>
+            `).join('');
+          }
+        }
+      });
     }, CONFIG.SLOW_TICK_INTERVAL);
 
     setTimeout(() => {
@@ -2069,6 +3017,27 @@
       }
     }, CONFIG.SIM_TIMEOUT);
   }
+
+  window.acceptSuggestion = function(type) {
+    const suggestion = SuggestionsEngine._suggestions.find(s => s.type === type);
+    if (suggestion) {
+      if (suggestion.type === 'activity_pattern') {
+        const data = suggestion.data;
+        window.createAutomationFromPattern(data.when, data.value);
+      } else if (suggestion.type === 'step_goal_near') {
+        showToast('Time to walk! Get those steps in.');
+      } else if (suggestion.type === 'inactivity') {
+        showToast('Time to move! Take a short walk.');
+      }
+      SuggestionsEngine.dismiss(type);
+    }
+    $('suggestionArea').innerHTML = '<div class="empty-note">Suggestion accepted!</div>';
+  };
+
+  window.dismissSuggestion = function(type) {
+    SuggestionsEngine.dismiss(type);
+    $('suggestionArea').innerHTML = '<div class="empty-note">Suggestion dismissed.</div>';
+  };
 
   // ============================================================
   // PLACES
@@ -2088,11 +3057,13 @@
     const ans = $('askAnswer');
     ans.style.display = 'block';
 
+    const distanceKm = DistanceTracker.getTotalDistance() / 1000;
+
     if (q.includes('doing') || q.includes('now')) {
       ans.textContent = `You are currently ${state.currentActivity} with ${Math.round(state.confidence)}% confidence. ${state.steps} steps detected.`;
     } else if (q.includes('active') || q.includes('today')) {
       const dominant = Object.keys(state.activityCounts).reduce((a, b) => state.activityCounts[a] > state.activityCounts[b] ? a : b);
-      ans.textContent = `Logged ${state.timeline.length} events. Dominant activity: ${dominant}. ${state.steps} steps.`;
+      ans.textContent = `Logged ${state.timeline.length} events. Dominant activity: ${dominant}. ${state.steps} steps. Distance: ${distanceKm.toFixed(1)} km.`;
     } else if (q.includes('sensors')) {
       ans.textContent = `Accelerometer${state.isLive ? ' ✅' : ' ❌'}, Gyroscope ${state.isLive ? '✅' : '❌'}, Network ${state.network.available ? '✅' : '❌'}. (${state.isSim ? 'Simulated' : 'Hardware Direct'})`;
     } else if (q.includes('automation')) {
@@ -2100,7 +3071,7 @@
     } else if (q.includes('battery')) {
       ans.textContent = `Battery: ${state.battery.level}% ${state.battery.charging ? '(charging)' : '(not charging)'}`;
     } else if (q.includes('step') || q.includes('walk')) {
-      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}`;
+      ans.textContent = `You've taken ${state.steps} steps this session. Goal: ${state.stepGoal || CONFIG.STEP_GOAL_DEFAULT}. Distance: ${distanceKm.toFixed(1)} km.`;
     } else if (q.includes('duration') || q.includes('time')) {
       const durations = Object.entries(state.activityDurations)
         .filter(([, v]) => v > 0)
@@ -2109,8 +3080,20 @@
       ans.textContent = `Activity durations: ${durations || 'No data yet'}.`;
     } else if (q.includes('sound')) {
       ans.textContent = `Sound effects are ${SoundEngine.enabled ? 'ON 🔊' : 'OFF 🔇'}.`;
+    } else if (q.includes('weekly') || q.includes('week')) {
+      SessionEngine.getWeeklySummary().then(weekData => {
+        if (weekData) {
+          const days = Object.keys(weekData.dailyTotals).length;
+          ans.textContent = `Past ${days} days: ${weekData.totalSteps} steps, ${(weekData.totalDistance/1000).toFixed(1)} km.`;
+        } else {
+          ans.textContent = 'Not enough data for weekly summary yet.';
+        }
+      });
+      return;
+    } else if (q.includes('far') || q.includes('distance')) {
+      ans.textContent = `You've traveled ${distanceKm.toFixed(1)} km total. Walking: ${(DistanceTracker.getActivityDistance('Walking')/1000).toFixed(1)} km, Running: ${(DistanceTracker.getActivityDistance('Running')/1000).toFixed(1)} km, Vehicle: ${(DistanceTracker.getActivityDistance('Vehicle')/1000).toFixed(1)} km.`;
     } else {
-      ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g.`;
+      ans.textContent = `SensorMind analysis: Context = ${state.currentActivity} (${Math.round(state.confidence)}% confidence), Battery = ${state.battery.level}%, Accel = ${state.accel.mag.toFixed(2)}g, Distance = ${distanceKm.toFixed(1)} km.`;
     }
   }
 
@@ -2129,6 +3112,21 @@
     SoundEngine.setEnabled(e.target.checked);
     updateSoundUI();
     showToast(SoundEngine.enabled ? '🔊 Sound effects ON' : '🔇 Sound effects OFF');
+  });
+
+  // Vibration Toggle
+  $('toggleVibration').addEventListener('change', (e) => {
+    VibrationEngine.setEnabled(e.target.checked);
+    showToast(e.target.checked ? '📳 Vibration ON' : '📳 Vibration OFF');
+  });
+
+  // Notifications Toggle
+  $('toggleNotifications').addEventListener('change', (e) => {
+    NotificationSystem.setEnabled(e.target.checked);
+    if (e.target.checked) {
+      NotificationSystem.requestPermission();
+    }
+    showToast(e.target.checked ? '🔔 Notifications ON' : '🔔 Notifications OFF');
   });
 
   // Why Button
@@ -2217,6 +3215,8 @@
     state.steps = 0;
     state.confidenceHistory = [];
     state._suggested = {};
+    state._sessions = [];
+    DistanceTracker.reset();
     SoundEngine.stopWalkingLoop();
     renderTimeline();
     renderAutomationHistory();
@@ -2227,32 +3227,7 @@
     showToast('Session data cleared');
   });
 
-  $('btnExportData').addEventListener('click', () => {
-    const data = {
-      timestamp: new Date().toISOString(),
-      state: {
-        currentActivity: state.currentActivity,
-        confidence: state.confidence,
-        steps: state.steps,
-        speed: state.speed,
-        battery: state.battery,
-        timeline: state.timeline,
-        automations: state.automations,
-        automationHistory: state.automationHistory,
-        gestures: state.gestures,
-        activityCounts: state.activityCounts,
-        activityDurations: state.activityDurations,
-        confidenceHistory: state.confidenceHistory.slice(-20)
-      }
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sensormind-session-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
+  $('btnExportData').addEventListener('click', exportData);
 
   $('btnResetAll').addEventListener('click', () => {
     if (confirm('Reset all SensorMind settings and custom rules?')) {
@@ -2260,6 +3235,8 @@
         StorageEngine.clear('automations');
         StorageEngine.clear('gestures');
         StorageEngine.clear('places');
+        StorageEngine.clear('sessions');
+        localStorage.removeItem('sensormind_calibration');
         location.reload();
       }
     }
@@ -2305,6 +3282,25 @@
     renderDurationDisplay();
   });
 
+  // Calibration
+  $('calibrateBtn').addEventListener('click', async () => {
+    const result = await CalibrationEngine.startCalibration();
+    if (result) {
+      localStorage.setItem('sensormind_calibration', JSON.stringify({
+        calibrated: true,
+        baseline: result
+      }));
+      renderUI();
+    }
+  });
+
+  $('resetCalibrationBtn').addEventListener('click', () => {
+    CalibrationEngine.reset();
+    localStorage.removeItem('sensormind_calibration');
+    showToast('Calibration reset');
+    renderUI();
+  });
+
   // Gesture Recording
   $('gestStart').addEventListener('click', () => {
     const name = $('gestName').value.trim() || 'Custom Gesture';
@@ -2324,6 +3320,7 @@
         $('gestStatus').textContent = `Saved gesture "${name}" with ${count} motion samples.`;
         renderGestures();
         showToast(`Gesture "${name}" saved!`);
+        VibrationEngine.gestureDetected();
       } else {
         $('gestStatus').textContent = `Recording too short (${count} samples). Try again.`;
         showToast('Gesture recording too short');
@@ -2351,7 +3348,8 @@
         ay: state.accel.y,
         az: state.accel.z,
         mag: state.accel.mag,
-        speed: state.speed
+        speed: state.speed,
+        steps: state.steps
       });
       $('labStatus').textContent = `Recording... ${elapsed}/${dur}s (${labData.length} samples)`;
       if (elapsed >= dur) {
@@ -2365,8 +3363,8 @@
 
   $('labExportCsv').addEventListener('click', () => {
     if (!labData.length) { showToast('No recording to export'); return; }
-    const header = 'timestamp,ax,ay,az,mag,speed\n';
-    const rows = labData.map(r => `${r.t},${r.ax.toFixed(3)},${r.ay.toFixed(3)},${r.az.toFixed(3)},${r.mag.toFixed(3)},${r.speed}`).join('\n');
+    const header = 'timestamp,ax,ay,az,mag,speed,steps\n';
+    const rows = labData.map(r => `${r.t},${r.ax.toFixed(3)},${r.ay.toFixed(3)},${r.az.toFixed(3)},${r.mag.toFixed(3)},${r.speed},${r.steps}`).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2427,6 +3425,56 @@
   });
 
   // ============================================================
+  // PWA INSTALLATION
+  // ============================================================
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    showToast('📱 Install SensorMind as an app!');
+    // Add install button
+    const installBtn = document.createElement('button');
+    installBtn.className = 'btn-secondary';
+    installBtn.textContent = '📱 Install App';
+    installBtn.style.margin = '8px 20px';
+    installBtn.style.width = 'calc(100% - 40px)';
+    installBtn.onclick = () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            showToast('App installed successfully!');
+          }
+          deferredPrompt = null;
+        });
+      }
+    };
+    document.getElementById('view-home').parentNode.insertBefore(installBtn, document.getElementById('view-home'));
+  });
+
+  window.addEventListener('appinstalled', () => {
+    showToast('🎉 SensorMind installed!');
+  });
+
+  // ============================================================
+  // SCREEN LIFECYCLE HANDLING
+  // ============================================================
+  document.addEventListener('visibilitychange', () => {
+    state.screen.state = document.hidden ? 'Background' : 'Active';
+    if (document.hidden) {
+      // Reduce processing
+      state._backgroundMode = true;
+    } else {
+      state._backgroundMode = false;
+      // Revalidate sensors
+      if (state._realSensorsActive) {
+        state.sensorHealth.accel.stale = false;
+        state.sensorHealth.gyro.stale = false;
+      }
+    }
+  });
+
+  // ============================================================
   // INIT
   // ============================================================
   state.currentActivity = 'Stationary';
@@ -2445,7 +3493,16 @@
   updateGoalProgress();
   updateSoundUI();
 
-  console.log('SensorMind v2.1 with Sound Effects initialized. Click "Enable Sensors" to start.');
+  console.log('SensorMind v3.0 - Complete Rewrite with all improvements');
+  console.log('P0: Activity Detection Fix ✓');
+  console.log('P0: Step Counting Upgrade ✓');
+  console.log('P0: Session Engine ✓');
+  console.log('P1: Distance Tracking ✓');
+  console.log('P1: Browser Notifications ✓');
+  console.log('P1: Vibration Feedback ✓');
+  console.log('P2: Smart Suggestions ✓');
+  console.log('P2: Sensor Calibration ✓');
+  console.log('P3: PWA Support ✓');
   console.log('Storage mode:', StorageEngine.isMemFallback() ? 'In-memory (session only)' : 'IndexedDB (persistent)');
 
 })();
