@@ -751,8 +751,12 @@
       <div class="card" style="margin-bottom:14px;">
         <div class="status-row"><span class="status-key">Current GPS accuracy</span><span class="status-val" id="landCurrentAcc">—</span></div>
         <div id="landManualControls">
+          <div class="unit-row" style="margin-top:10px;margin-bottom:0;">
+            <button class="unit-chip" data-capture="fast">Fast (~3s)</button>
+            <button class="unit-chip active" data-capture="accurate">Accurate (~8s)</button>
+          </div>
           <button class="btn-primary" id="landAddPoint" style="width:100%;margin-top:10px;">📍 Mark This Corner</button>
-          <div class="mono" id="landManualStatus" style="font-size:11.5px;color:var(--text-dim);margin-top:8px;">Stand at the first corner, wait for a good accuracy reading, then tap.</div>
+          <div class="mono" id="landManualStatus" style="font-size:11.5px;color:var(--text-dim);margin-top:8px;">Stand at the first corner, wait for a good accuracy reading, then tap. "Accurate" takes several readings over ~8 seconds and combines them — noticeably better than a single fix.</div>
         </div>
         <div id="landAutoControls" style="display:none;">
           <button class="btn-primary" id="landAutoStart" style="width:100%;margin-top:10px;">▶️ Start Walking the Boundary</button>
@@ -969,7 +973,12 @@
     LAND_ACCURACY_GOOD: 8,
     LAND_ACCURACY_WARN: 20,
     LAND_AUTO_MIN_DIST: 3,
-    LAND_MANUAL_SAMPLES: 3
+    LAND_MANUAL_SAMPLES: 3,
+    LAND_CAPTURE_FAST_SAMPLES: 3,
+    LAND_CAPTURE_FAST_MAX_MS: 3500,
+    LAND_CAPTURE_ACCURATE_SAMPLES: 10,
+    LAND_CAPTURE_ACCURATE_MAX_MS: 9000,
+    LAND_OUTLIER_REJECT_MULT: 2.5
   };
 
   // ============================================================
@@ -1054,6 +1063,7 @@
     _lastAmbiguous: false,
     land: {
       mode: 'manual',
+      captureMode: 'accurate',
       points: [],
       area: 0,
       perimeter: 0,
@@ -1797,59 +1807,108 @@
       return 'acc-poor';
     },
 
-    // Takes several quick GPS fixes and averages them — a simple, well
-    // known way to reduce single-fix noise when the phone is stationary
-    // at a corner (the fixes are only averaged if they roughly agree;
-    // wildly different fixes are not silently blended away).
-    getAveragedFix(samples) {
+    // Takes multiple GPS fixes while the phone stays still at a corner and
+    // combines them properly instead of just picking one reading:
+    //  1. Reject gross outliers (a fix wildly far from the others — usually
+    //     a momentary multipath bounce) before they can skew the result.
+    //  2. Inverse-variance weighted mean of what's left, so tighter-reported
+    //     fixes count for more than loose ones.
+    //  3. The point's stored "accuracy" becomes the larger of (a) the actual
+    //     spread of the kept samples around the mean and (b) half the best
+    //     single reading — i.e. never claim to be more precise than the
+    //     samples actually agreed with each other. Averaging genuinely
+    //     narrows GPS noise over a few seconds (satellite geometry and
+    //     multipath both drift), but it cannot beat the phone's underlying
+    //     chipset — there's a real floor here that no amount of client-side
+    //     averaging removes.
+    _median(arr) {
+      const s = arr.slice().sort((a, b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    },
+
+    _robustWeightedMean(readings) {
+      const medLat = this._median(readings.map(r => r.lat));
+      const medLon = this._median(readings.map(r => r.lon));
+      const medAcc = this._median(readings.map(r => r.accuracy));
+      const threshold = Math.max(medAcc * CONFIG.LAND_OUTLIER_REJECT_MULT, 5);
+      const kept = readings.filter(r => haversine(medLat, medLon, r.lat, r.lon) <= threshold);
+      const use = kept.length ? kept : readings;
+
+      let wSum = 0, latSum = 0, lonSum = 0;
+      use.forEach(r => {
+        const w = 1 / Math.pow(Math.max(r.accuracy, 1), 2);
+        wSum += w; latSum += r.lat * w; lonSum += r.lon * w;
+      });
+      const lat = latSum / wSum, lon = lonSum / wSum;
+
+      const spread = use.length > 1
+        ? Math.sqrt(use.reduce((s, r) => s + Math.pow(haversine(lat, lon, r.lat, r.lon), 2), 0) / use.length)
+        : use[0].accuracy;
+      const bestReported = Math.min(...use.map(r => r.accuracy));
+      const effectiveAccuracy = Math.max(spread, bestReported * 0.5);
+
+      return {
+        lat, lon,
+        accuracy: effectiveAccuracy,
+        samples: use.length,
+        rejected: readings.length - use.length,
+        t: Date.now()
+      };
+    },
+
+    getWeightedFix(maxSamples, maxMs, onSample) {
       return new Promise((resolve, reject) => {
         if (!('geolocation' in navigator)) { reject(new Error('no geolocation')); return; }
+        const start = Date.now();
         const readings = [];
-        let cancelled = false;
-        const takeOne = () => {
-          navigator.geolocation.getCurrentPosition(
-            pos => {
-              if (cancelled) return;
-              readings.push({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy || 30 });
-              if (readings.length >= samples) {
-                finish();
-              } else {
-                setTimeout(takeOne, 350);
-              }
-            },
-            err => { if (!cancelled) reject(err); },
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-          );
-        };
+        let done = false;
+        let watchId = null;
+
         const finish = () => {
-          cancelled = true;
-          // Use the most accurate reading rather than a blind average —
-          // averaging a good fix with a bad one makes the good one worse.
-          readings.sort((a, b) => a.accuracy - b.accuracy);
-          const best = readings[0];
-          resolve({ lat: best.lat, lon: best.lon, accuracy: best.accuracy, t: Date.now() });
+          if (done) return;
+          done = true;
+          if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+          if (!readings.length) { reject(new Error('no fix')); return; }
+          resolve(this._robustWeightedMean(readings));
         };
-        takeOne();
+
+        watchId = navigator.geolocation.watchPosition(
+          pos => {
+            const acc = pos.coords.accuracy || 30;
+            readings.push({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: acc, t: Date.now() });
+            if (onSample) onSample(readings.length, acc);
+            if (readings.length >= maxSamples || Date.now() - start >= maxMs) finish();
+          },
+          () => { if (!readings.length) { done = true; if (watchId !== null) navigator.geolocation.clearWatch(watchId); reject(new Error('gps error')); } },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: maxMs + 5000 }
+        );
+        setTimeout(finish, maxMs + 500);
       });
     },
 
     async addManualPoint() {
       const status = $('landManualStatus');
       const btn = $('landAddPoint');
-      if (btn) btn.disabled = true;
-      if (status) status.textContent = 'Getting an accurate GPS fix — hold still…';
+      if (btn) { btn.disabled = true; btn.textContent = '📍 Capturing…'; }
+      const isAccurate = state.land.captureMode === 'accurate';
+      const maxSamples = isAccurate ? CONFIG.LAND_CAPTURE_ACCURATE_SAMPLES : CONFIG.LAND_CAPTURE_FAST_SAMPLES;
+      const maxMs = isAccurate ? CONFIG.LAND_CAPTURE_ACCURATE_MAX_MS : CONFIG.LAND_CAPTURE_FAST_MAX_MS;
       try {
-        const fix = await this.getAveragedFix(CONFIG.LAND_MANUAL_SAMPLES);
+        const fix = await this.getWeightedFix(maxSamples, maxMs, (count, acc) => {
+          if (status) status.textContent = `Hold still — sample ${count}/${maxSamples}, current reading ±${Math.round(acc)} m…`;
+        });
         state.land.points.push(fix);
         this.compute();
         this.renderAll();
-        if (status) status.textContent = `Corner ${state.land.points.length} marked (±${Math.round(fix.accuracy)} m). Walk to the next corner.`;
+        const rejectedNote = fix.rejected ? `, ${fix.rejected} noisy reading${fix.rejected > 1 ? 's' : ''} discarded` : '';
+        if (status) status.textContent = `Corner ${state.land.points.length} marked from ${fix.samples} samples (±${Math.round(fix.accuracy)} m${rejectedNote}). Walk to the next corner.`;
         VibrationEngine.vibrate([30]);
       } catch (e) {
         if (status) status.textContent = 'Could not get a GPS fix. Make sure location access is allowed and try again outdoors.';
         showToast('GPS fix failed — check location permission');
       }
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.textContent = '📍 Mark This Corner'; }
     },
 
     startAutoTrack() {
@@ -1932,7 +1991,7 @@
       state.land.points.forEach((p, i) => {
         const row = createElement('div', { className: 'land-point-row' });
         const idx = createElement('div', { className: 'land-point-idx', textContent: String(i + 1) });
-        const coord = createElement('div', { className: 'land-point-coord', textContent: `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}` });
+        const coord = createElement('div', { className: 'land-point-coord', textContent: `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}${p.samples ? ` (${p.samples} samples)` : ''}` });
         const acc = createElement('span', { className: `acc-badge ${this.accuracyClass(p.accuracy)}`, textContent: `±${Math.round(p.accuracy || 0)}m` });
         const del = createElement('button', { className: 'land-del-btn', textContent: '✕', 'aria-label': 'Delete point ' + (i + 1) });
         del.addEventListener('click', () => {
@@ -2147,6 +2206,13 @@
       chip.classList.add('active');
       state.land.unit = chip.getAttribute('data-unit');
       LandEngine.renderResult();
+    });
+  });
+  document.querySelectorAll('#landManualControls [data-capture]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#landManualControls [data-capture]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.land.captureMode = chip.getAttribute('data-capture');
     });
   });
 
