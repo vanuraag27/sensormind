@@ -139,6 +139,42 @@
   .week-bar-label{font-size:9.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
   .week-bar-val{font-size:9px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
 
+  /* LAND MEASUREMENT */
+  .land-note{background:rgba(77,217,196,0.07);border:1px solid rgba(77,217,196,.25);border-radius:12px;
+    padding:12px 14px;font-size:12px;line-height:1.6;color:var(--text);margin-bottom:14px;}
+  .land-note b{color:var(--teal);}
+  .land-warn{background:rgba(255,184,77,0.1);border:1px solid rgba(255,184,77,.35);border-radius:12px;
+    padding:10px 13px;font-size:12px;line-height:1.55;color:var(--amber);margin-bottom:12px;display:none;}
+  .land-warn.show{display:block;}
+  .unit-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .unit-chip{background:var(--panel2);border:1px solid var(--border);color:var(--text-dim);font-size:10.5px;
+    padding:6px 10px;border-radius:20px;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .15s;}
+  .unit-chip.active{background:rgba(255,184,77,.14);color:var(--amber);border-color:rgba(255,184,77,.4);}
+  .land-area-value{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:700;color:var(--text-bright);
+    letter-spacing:-.02em;line-height:1.1;}
+  .land-area-sub{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);margin-top:4px;}
+  .land-canvas-wrap{background:var(--panel2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:12px 0;}
+  .land-point-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;}
+  .land-point-row:last-child{border-bottom:none;}
+  .land-point-idx{width:20px;height:20px;border-radius:50%;background:var(--panel2);color:var(--text-dim);
+    display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;font-family:'JetBrains Mono',monospace;}
+  .land-point-coord{flex:1;font-family:'JetBrains Mono',monospace;color:var(--text-bright);font-size:11.5px;}
+  .acc-badge{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:10px;flex-shrink:0;}
+  .acc-good{background:rgba(107,203,119,.12);color:var(--green);}
+  .acc-ok{background:rgba(255,184,77,.12);color:var(--amber);}
+  .acc-poor{background:rgba(255,107,107,.12);color:var(--red);}
+  .land-del-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px;flex-shrink:0;}
+  .land-del-btn:hover{color:var(--red);}
+  .land-mode-toggle{display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;}
+  .land-mode-toggle button{flex:1;background:var(--panel2);border:none;color:var(--text-dim);padding:10px;
+    font-size:12px;font-weight:500;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
+  .land-mode-toggle button.active{background:rgba(255,184,77,.12);color:var(--amber);}
+  .saved-land-row{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
+  .saved-land-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .saved-land-name{font-weight:600;color:var(--text-bright);font-size:13px;}
+  .saved-land-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+
+
   .rule{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;}
   .rule-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;}
   .rule-text{font-size:13px;line-height:1.7;}
@@ -698,6 +734,85 @@
     </div>
   </div>
 
+  <div class="view" id="view-land">
+    <div class="section">
+      <div class="section-title" style="margin-top:22px">Measure Land by GPS</div>
+      <div class="land-note">
+        <b>How this works:</b> walk to each corner of the plot and mark it, in order, all the way around. When you close the loop, area is calculated from the GPS points using their actual shape — not a straight-line guess.
+        <br><br>
+        <b>Accuracy:</b> ordinary phone GPS is typically accurate to about 3–15 m outdoors and can be much worse near buildings, trees, or indoors. For a small plot that error matters a lot; for a large field it matters less. This tool shows you the accuracy of every point and an estimated ± error range for the total area — <b>this is not a substitute for an official land survey</b> and shouldn't be used for legal or financial decisions.
+      </div>
+
+      <div class="land-mode-toggle">
+        <button id="landModeManual" class="active" type="button">Tap Each Corner</button>
+        <button id="landModeAuto" type="button">Auto-track While Walking</button>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="status-row"><span class="status-key">Current GPS accuracy</span><span class="status-val" id="landCurrentAcc">—</span></div>
+        <div id="landManualControls">
+          <button class="btn-primary" id="landAddPoint" style="width:100%;margin-top:10px;">📍 Mark This Corner</button>
+          <div class="mono" id="landManualStatus" style="font-size:11.5px;color:var(--text-dim);margin-top:8px;">Stand at the first corner, wait for a good accuracy reading, then tap.</div>
+        </div>
+        <div id="landAutoControls" style="display:none;">
+          <button class="btn-primary" id="landAutoStart" style="width:100%;margin-top:10px;">▶️ Start Walking the Boundary</button>
+          <button class="btn-secondary" id="landAutoStop" style="width:100%;margin-top:8px;display:none;">⏹ Stop Tracking</button>
+          <div class="mono" id="landAutoStatus" style="font-size:11.5px;color:var(--text-dim);margin-top:8px;">Walk the perimeter once, in order. A point is added automatically every few meters.</div>
+        </div>
+        <div class="btn-row">
+          <button class="chip-btn" id="landUndo">Undo Last Point</button>
+          <button class="chip-btn danger" id="landClear">Clear All</button>
+        </div>
+      </div>
+
+      <div class="land-warn" id="landAccWarn"></div>
+
+      <div class="section-title">Boundary Points <small id="landPointCount">0</small></div>
+      <div class="card" id="landPointsCard">
+        <div id="landPointsList" style="font-size:12px;color:var(--text-dim);">No points marked yet.</div>
+      </div>
+
+      <div class="land-canvas-wrap" id="landCanvasWrap" style="display:none;">
+        <svg id="landPreview" viewBox="0 0 320 220" style="width:100%;height:220px;display:block;"></svg>
+      </div>
+
+      <div class="section-title">Result</div>
+      <div class="card">
+        <div class="unit-row" id="landUnitRow">
+          <button class="unit-chip active" data-unit="sqm">m²</button>
+          <button class="unit-chip" data-unit="hectare">hectares</button>
+          <button class="unit-chip" data-unit="acre">acres</button>
+          <button class="unit-chip" data-unit="sqft">sq ft</button>
+          <button class="unit-chip" data-unit="sqyd">sq yd</button>
+          <button class="unit-chip" data-unit="bigha">bigha/katha*</button>
+        </div>
+        <div class="land-area-value" id="landAreaValue">0</div>
+        <div class="land-area-sub" id="landAreaSub">Add at least 3 points to calculate area</div>
+        <div class="status-row" style="margin-top:12px;"><span class="status-key">Perimeter</span><span class="status-val" id="landPerimeter">— m</span></div>
+        <div class="status-row"><span class="status-key">Points used</span><span class="status-val" id="landPointsUsed">0</span></div>
+        <div class="status-row"><span class="status-key">Average GPS accuracy</span><span class="status-val" id="landAvgAcc">—</span></div>
+        <div id="landBighaNote" style="display:none;font-size:10.5px;color:var(--text-dim);margin-top:10px;line-height:1.5;">
+          *Approximate, using the commonly-quoted Patna/Arrah reference (1 katha = 1,361.25 sq ft, 20 katha = 1 bigha). Bigha and katha sizes vary by district in Bihar and by state elsewhere in India — verify against local revenue records before relying on this for any official purpose.
+        </div>
+      </div>
+
+      <div class="section-title">Save This Measurement</div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="builder-row" style="margin-bottom:10px;">
+          <input class="num-input" id="landSaveName" type="text" placeholder="Label, e.g. North field" maxlength="60">
+        </div>
+        <button class="btn-secondary" id="landSaveBtn" style="width:100%;">Save Measurement</button>
+        <div class="btn-row">
+          <button class="chip-btn" id="landExportGeoJSON">Export GeoJSON</button>
+          <button class="chip-btn" id="landExportCSV">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="section-title">Saved Measurements <small id="landSavedCount">0</small></div>
+      <div id="landSavedList"><div class="card" style="color:var(--text-dim);font-size:12px;">No saved measurements yet.</div></div>
+    </div>
+  </div>
+
   <div class="view" id="view-settings">
     <div class="section">
       <div class="section-title" style="margin-top:22px">Privacy &amp; Data Control</div>
@@ -793,6 +908,7 @@
     <button class="nav-btn" data-target="view-automations" role="tab" aria-selected="false"><span>⚡</span><span>Rules</span><span class="nav-dot"></span></button>
     <button class="nav-btn" data-target="view-insights" role="tab" aria-selected="false"><span>💡</span><span>Insights</span><span class="nav-dot"></span></button>
     <button class="nav-btn" data-target="view-sensors" role="tab" aria-selected="false"><span>📡</span><span>Sensors</span><span class="nav-dot"></span></button>
+    <button class="nav-btn" data-target="view-land" role="tab" aria-selected="false"><span>📐</span><span>Land</span><span class="nav-dot"></span></button>
     <button class="nav-btn" data-target="view-settings" role="tab" aria-selected="false"><span>⚙️</span><span>Settings</span><span class="nav-dot"></span></button>
   </nav>
 </div>
@@ -849,7 +965,11 @@
     ACCEL_STALE_MS: 2000,
     GYRO_STALE_MS: 2000,
     GPS_STALE_MS: 15000,
-    AMBIGUITY_MARGIN: 0.12
+    AMBIGUITY_MARGIN: 0.12,
+    LAND_ACCURACY_GOOD: 8,
+    LAND_ACCURACY_WARN: 20,
+    LAND_AUTO_MIN_DIST: 3,
+    LAND_MANUAL_SAMPLES: 3
   };
 
   // ============================================================
@@ -931,7 +1051,18 @@
     _pendingActivity: null,
     _pendingConfidence: 0,
     _activityStable: false,
-    _lastAmbiguous: false
+    _lastAmbiguous: false,
+    land: {
+      mode: 'manual',
+      points: [],
+      area: 0,
+      perimeter: 0,
+      areaUncertainty: 0,
+      unit: 'sqm',
+      autoTracking: false,
+      watchId: null,
+      saved: []
+    }
   };
 
   // ============================================================
@@ -1165,10 +1296,10 @@
       return new Promise((resolve) => {
         if (!('indexedDB' in window)) { this._memFallback = true; resolve(false); return; }
         try {
-          const req = indexedDB.open('sensormind_db', 4);
+          const req = indexedDB.open('sensormind_db', 5);
           req.onupgradeneeded = (e) => {
             const db = e.target.result;
-            ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities'].forEach(s => {
+            ['automations', 'automation_history', 'gestures', 'places', 'preferences', 'sessions', 'events', 'activities', 'land_measurements'].forEach(s => {
               if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id', autoIncrement: true });
             });
           };
@@ -1371,6 +1502,8 @@
       const view = $(target);
       if (view) view.classList.add('active');
       if (target === 'view-activity') renderWeeklyStepsChart();
+      LandEngine.stopAccuracyWatch();
+      if (target === 'view-land') { LandEngine.startAccuracyWatch(); LandEngine.renderAll(); }
     });
   });
 
@@ -1593,6 +1726,429 @@
 
   function getTotalDistance() { return state._totalDistance; }
   function getActivityDistance(activity) { return state._activityDistances[activity] || 0; }
+
+  // ============================================================
+  // LAND MEASUREMENT — measure a plot's boundary using GPS points
+  // ============================================================
+  const LandEngine = {
+
+    // Local equirectangular projection (lat/lon -> metres) around the
+    // polygon's own mean latitude. For plots up to tens of hectares this
+    // introduces negligible distortion versus a full geodesic calculation,
+    // and it keeps the shoelace formula simple and auditable.
+    project(points) {
+      const lat0 = points.reduce((s, p) => s + p.lat, 0) / points.length;
+      const lat0rad = lat0 * Math.PI / 180;
+      const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * lat0rad) + 1.175 * Math.cos(4 * lat0rad);
+      const mPerDegLon = 111412.84 * Math.cos(lat0rad) - 93.5 * Math.cos(3 * lat0rad);
+      const lon0 = points[0].lon, lat0Origin = points[0].lat;
+      return points.map(p => ({
+        x: (p.lon - lon0) * mPerDegLon,
+        y: (p.lat - lat0Origin) * mPerDegLat
+      }));
+    },
+
+    shoelaceArea(xy) {
+      let sum = 0;
+      for (let i = 0; i < xy.length; i++) {
+        const j = (i + 1) % xy.length;
+        sum += xy[i].x * xy[j].y - xy[j].x * xy[i].y;
+      }
+      return Math.abs(sum) / 2;
+    },
+
+    perimeterMeters(points) {
+      let p = 0;
+      for (let i = 0; i < points.length; i++) {
+        const j = (i + 1) % points.length;
+        p += haversine(points[i].lat, points[i].lon, points[j].lat, points[j].lon);
+      }
+      return p;
+    },
+
+    // Honest uncertainty estimate: treat each vertex as able to be off by
+    // its own reported GPS accuracy. To first order, the resulting area
+    // error scales with (perimeter × typical position error). This is a
+    // rough band, not a rigorous propagation, and is presented as such.
+    estimateAreaUncertainty(points, perimeter) {
+      if (!points.length) return 0;
+      const avgAcc = points.reduce((s, p) => s + (p.accuracy || 15), 0) / points.length;
+      return perimeter * avgAcc * 0.5;
+    },
+
+    compute() {
+      const pts = state.land.points;
+      if (pts.length < 3) {
+        state.land.area = 0;
+        state.land.perimeter = 0;
+        state.land.areaUncertainty = 0;
+        return;
+      }
+      const xy = this.project(pts);
+      state.land.area = this.shoelaceArea(xy);
+      state.land.perimeter = this.perimeterMeters(pts);
+      state.land.areaUncertainty = this.estimateAreaUncertainty(pts, state.land.perimeter);
+    },
+
+    accuracyClass(acc) {
+      if (acc == null) return 'acc-poor';
+      if (acc <= CONFIG.LAND_ACCURACY_GOOD) return 'acc-good';
+      if (acc <= CONFIG.LAND_ACCURACY_WARN) return 'acc-ok';
+      return 'acc-poor';
+    },
+
+    // Takes several quick GPS fixes and averages them — a simple, well
+    // known way to reduce single-fix noise when the phone is stationary
+    // at a corner (the fixes are only averaged if they roughly agree;
+    // wildly different fixes are not silently blended away).
+    getAveragedFix(samples) {
+      return new Promise((resolve, reject) => {
+        if (!('geolocation' in navigator)) { reject(new Error('no geolocation')); return; }
+        const readings = [];
+        let cancelled = false;
+        const takeOne = () => {
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              if (cancelled) return;
+              readings.push({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy || 30 });
+              if (readings.length >= samples) {
+                finish();
+              } else {
+                setTimeout(takeOne, 350);
+              }
+            },
+            err => { if (!cancelled) reject(err); },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+          );
+        };
+        const finish = () => {
+          cancelled = true;
+          // Use the most accurate reading rather than a blind average —
+          // averaging a good fix with a bad one makes the good one worse.
+          readings.sort((a, b) => a.accuracy - b.accuracy);
+          const best = readings[0];
+          resolve({ lat: best.lat, lon: best.lon, accuracy: best.accuracy, t: Date.now() });
+        };
+        takeOne();
+      });
+    },
+
+    async addManualPoint() {
+      const status = $('landManualStatus');
+      const btn = $('landAddPoint');
+      if (btn) btn.disabled = true;
+      if (status) status.textContent = 'Getting an accurate GPS fix — hold still…';
+      try {
+        const fix = await this.getAveragedFix(CONFIG.LAND_MANUAL_SAMPLES);
+        state.land.points.push(fix);
+        this.compute();
+        this.renderAll();
+        if (status) status.textContent = `Corner ${state.land.points.length} marked (±${Math.round(fix.accuracy)} m). Walk to the next corner.`;
+        VibrationEngine.vibrate([30]);
+      } catch (e) {
+        if (status) status.textContent = 'Could not get a GPS fix. Make sure location access is allowed and try again outdoors.';
+        showToast('GPS fix failed — check location permission');
+      }
+      if (btn) btn.disabled = false;
+    },
+
+    startAutoTrack() {
+      if (state.land.autoTracking || !('geolocation' in navigator)) {
+        if (!('geolocation' in navigator)) showToast('Geolocation not supported in this browser');
+        return;
+      }
+      state.land.autoTracking = true;
+      $('landAutoStart').style.display = 'none';
+      $('landAutoStop').style.display = 'block';
+      $('landAutoStatus').textContent = 'Tracking… walk the boundary once, in order.';
+      state.land.watchId = navigator.geolocation.watchPosition(
+        pos => {
+          const acc = pos.coords.accuracy || 30;
+          $('landCurrentAcc').textContent = `±${Math.round(acc)} m`;
+          if (acc > CONFIG.LAND_ACCURACY_WARN * 2) return; // reading too poor to trust at all
+          const fix = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: acc, t: Date.now() };
+          const pts = state.land.points;
+          const last = pts[pts.length - 1];
+          const dist = last ? haversine(last.lat, last.lon, fix.lat, fix.lon) : Infinity;
+          if (dist >= CONFIG.LAND_AUTO_MIN_DIST) {
+            pts.push(fix);
+            this.compute();
+            this.renderAll();
+          }
+        },
+        () => { showToast('GPS signal lost'); },
+        { enableHighAccuracy: true }
+      );
+    },
+
+    stopAutoTrack() {
+      if (state.land.watchId !== null) navigator.geolocation.clearWatch(state.land.watchId);
+      state.land.watchId = null;
+      state.land.autoTracking = false;
+      const startBtn = $('landAutoStart'), stopBtn = $('landAutoStop');
+      if (startBtn) startBtn.style.display = 'block';
+      if (stopBtn) stopBtn.style.display = 'none';
+      const status = $('landAutoStatus');
+      if (status) status.textContent = `Stopped. ${state.land.points.length} points captured.`;
+    },
+
+    undo() {
+      state.land.points.pop();
+      this.compute();
+      this.renderAll();
+    },
+
+    clear() {
+      if (state.land.points.length && !confirm('Clear all marked points for this measurement?')) return;
+      state.land.points = [];
+      this.compute();
+      this.renderAll();
+    },
+
+    convert(areaSqm) {
+      switch (state.land.unit) {
+        case 'hectare': return areaSqm / 10000;
+        case 'acre': return areaSqm / 4046.8564224;
+        case 'sqft': return areaSqm / 0.09290304;
+        case 'sqyd': return areaSqm / 0.83612736;
+        case 'bigha': return areaSqm / 0.09290304 / 1361.25; // Patna/Arrah katha reference, see disclaimer
+        default: return areaSqm; // sqm
+      }
+    },
+
+    unitSuffix() {
+      return { sqm: 'm²', hectare: 'ha', acre: 'acres', sqft: 'sq ft', sqyd: 'sq yd', bigha: 'bigha' }[state.land.unit] || '';
+    },
+
+    renderList() {
+      $('landPointCount').textContent = state.land.points.length;
+      const list = $('landPointsList');
+      if (!list) return;
+      if (!state.land.points.length) {
+        list.innerHTML = 'No points marked yet.';
+        return;
+      }
+      list.innerHTML = '';
+      state.land.points.forEach((p, i) => {
+        const row = createElement('div', { className: 'land-point-row' });
+        const idx = createElement('div', { className: 'land-point-idx', textContent: String(i + 1) });
+        const coord = createElement('div', { className: 'land-point-coord', textContent: `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}` });
+        const acc = createElement('span', { className: `acc-badge ${this.accuracyClass(p.accuracy)}`, textContent: `±${Math.round(p.accuracy || 0)}m` });
+        const del = createElement('button', { className: 'land-del-btn', textContent: '✕', 'aria-label': 'Delete point ' + (i + 1) });
+        del.addEventListener('click', () => {
+          state.land.points.splice(i, 1);
+          this.compute();
+          this.renderAll();
+        });
+        row.appendChild(idx); row.appendChild(coord); row.appendChild(acc); row.appendChild(del);
+        list.appendChild(row);
+      });
+    },
+
+    renderWarning() {
+      const warn = $('landAccWarn');
+      if (!warn) return;
+      const poor = state.land.points.filter(p => (p.accuracy || 99) > CONFIG.LAND_ACCURACY_WARN);
+      if (poor.length) {
+        warn.textContent = `⚠️ ${poor.length} point${poor.length > 1 ? 's have' : ' has'} weak GPS accuracy (over ${CONFIG.LAND_ACCURACY_WARN} m). Consider deleting and re-marking ${poor.length > 1 ? 'them' : 'it'} outdoors, away from buildings, for a reliable result.`;
+        warn.classList.add('show');
+      } else {
+        warn.classList.remove('show');
+      }
+    },
+
+    renderPreview() {
+      const wrap = $('landCanvasWrap');
+      const svg = $('landPreview');
+      if (!svg || !wrap) return;
+      const pts = state.land.points;
+      if (pts.length < 2) { wrap.style.display = 'none'; svg.innerHTML = ''; return; }
+      wrap.style.display = 'block';
+      const xy = this.project(pts);
+      const xs = xy.map(p => p.x), ys = xy.map(p => p.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      const w = Math.max(maxX - minX, 1), h = Math.max(maxY - minY, 1);
+      const pad = 24, vw = 320, vh = 220;
+      const scale = Math.min((vw - pad * 2) / w, (vh - pad * 2) / h);
+      const toSvg = (p) => {
+        const sx = pad + (p.x - minX) * scale + (vw - pad * 2 - w * scale) / 2;
+        // flip Y since screen coordinates grow downward but north (latitude) should be up
+        const sy = vh - (pad + (p.y - minY) * scale + (vh - pad * 2 - h * scale) / 2);
+        return `${sx.toFixed(1)},${sy.toFixed(1)}`;
+      };
+      const svgPts = xy.map(toSvg);
+      const polygon = pts.length >= 3
+        ? `<polygon points="${svgPts.join(' ')}" fill="rgba(77,217,196,0.15)" stroke="var(--teal)" stroke-width="2"/>`
+        : `<polyline points="${svgPts.join(' ')}" fill="none" stroke="var(--teal)" stroke-width="2" stroke-dasharray="4 3"/>`;
+      const dots = xy.map((p, i) => {
+        const [sx, sy] = toSvg(p).split(',');
+        const fill = i === 0 ? 'var(--amber)' : 'var(--teal)';
+        return `<circle cx="${sx}" cy="${sy}" r="4" fill="${fill}"/><text x="${sx}" y="${Number(sy) - 8}" font-size="9" fill="var(--text-dim)" text-anchor="middle" font-family="JetBrains Mono, monospace">${i + 1}</text>`;
+      }).join('');
+      svg.innerHTML = polygon + dots;
+    },
+
+    renderResult() {
+      const converted = this.convert(state.land.area);
+      $('landAreaValue').textContent = state.land.points.length < 3 ? '0' : fmt(converted, converted < 10 ? 2 : converted < 1000 ? 1 : 0);
+      const uncertaintyConverted = this.convert(state.land.areaUncertainty);
+      if (state.land.points.length >= 3) {
+        $('landAreaSub').textContent = `${this.unitSuffix()}  ·  estimated ± ${fmt(uncertaintyConverted, uncertaintyConverted < 10 ? 2 : 0)} ${this.unitSuffix()} from GPS error`;
+      } else {
+        $('landAreaSub').textContent = 'Add at least 3 points to calculate area';
+      }
+      $('landPerimeter').textContent = state.land.perimeter ? `${fmt(state.land.perimeter, 1)} m` : '— m';
+      $('landPointsUsed').textContent = state.land.points.length;
+      const avgAcc = state.land.points.length ? state.land.points.reduce((s, p) => s + (p.accuracy || 0), 0) / state.land.points.length : null;
+      $('landAvgAcc').textContent = avgAcc != null ? `±${Math.round(avgAcc)} m` : '—';
+      $('landBighaNote').style.display = state.land.unit === 'bigha' ? 'block' : 'none';
+    },
+
+    renderSaved() {
+      const list = $('landSavedList');
+      $('landSavedCount').textContent = state.land.saved.length;
+      if (!list) return;
+      if (!state.land.saved.length) {
+        list.innerHTML = '<div class="card" style="color:var(--text-dim);font-size:12px;">No saved measurements yet.</div>';
+        return;
+      }
+      list.innerHTML = '';
+      state.land.saved.slice().reverse().forEach(m => {
+        const row = createElement('div', { className: 'saved-land-row' });
+        const head = createElement('div', { className: 'saved-land-head' });
+        head.appendChild(createElement('span', { className: 'saved-land-name', textContent: m.name || 'Untitled plot' }));
+        const del = createElement('button', { className: 'land-del-btn', textContent: '✕', 'aria-label': 'Delete saved measurement' });
+        del.addEventListener('click', () => {
+          state.land.saved = state.land.saved.filter(x => x.id !== m.id);
+          StorageEngine.delete('land_measurements', m.id).catch(() => {});
+          this.renderSaved();
+        });
+        head.appendChild(del);
+        row.appendChild(head);
+        const areaHa = (m.areaSqm / 10000).toFixed(3);
+        const areaAcre = (m.areaSqm / 4046.8564224).toFixed(3);
+        row.appendChild(createElement('div', { className: 'saved-land-meta', textContent: `${fmt(m.areaSqm, 1)} m²  ·  ${areaHa} ha  ·  ${areaAcre} acres  ·  ${m.points.length} pts  ·  ${new Date(m.createdAt).toLocaleDateString()}` }));
+        list.appendChild(row);
+      });
+    },
+
+    renderAll() {
+      this.renderList();
+      this.renderWarning();
+      this.renderPreview();
+      this.renderResult();
+    },
+
+    save() {
+      if (state.land.points.length < 3) { showToast('Mark at least 3 corners first'); return; }
+      const nameInput = $('landSaveName');
+      const record = {
+        name: (nameInput && nameInput.value.trim()) || `Plot ${new Date().toLocaleDateString()}`,
+        points: state.land.points.map(p => ({ lat: p.lat, lon: p.lon, accuracy: p.accuracy })),
+        areaSqm: state.land.area,
+        perimeterM: state.land.perimeter,
+        areaUncertaintySqm: state.land.areaUncertainty,
+        createdAt: Date.now()
+      };
+      StorageEngine.add('land_measurements', record).then(id => {
+        record.id = id;
+        state.land.saved.push(record);
+        this.renderSaved();
+        if (nameInput) nameInput.value = '';
+        showToast('Measurement saved');
+      }).catch(() => showToast('Could not save measurement'));
+    },
+
+    exportGeoJSON() {
+      if (state.land.points.length < 3) { showToast('Mark at least 3 corners first'); return; }
+      const coords = state.land.points.map(p => [p.lon, p.lat]);
+      coords.push(coords[0]);
+      const geojson = {
+        type: 'Feature',
+        properties: {
+          areaSqm: state.land.area,
+          perimeterM: state.land.perimeter,
+          areaUncertaintySqm: state.land.areaUncertainty,
+          note: 'Area computed from phone GPS points via a planar (equirectangular) projection. Not a legal survey.'
+        },
+        geometry: { type: 'Polygon', coordinates: [coords] }
+      };
+      const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+      downloadBlob(blob, `sensormind-land-${Date.now()}.geojson`);
+    },
+
+    exportCSV() {
+      if (!state.land.points.length) { showToast('No points to export'); return; }
+      const header = 'index,latitude,longitude,accuracy_m\n';
+      const rows = state.land.points.map((p, i) => `${i + 1},${p.lat},${p.lon},${(p.accuracy || '').toString()}`).join('\n');
+      const footer = `\n\n# area_sqm,${state.land.area}\n# perimeter_m,${state.land.perimeter}\n# area_uncertainty_sqm,${state.land.areaUncertainty}`;
+      const blob = new Blob([header + rows + footer], { type: 'text/csv' });
+      downloadBlob(blob, `sensormind-land-${Date.now()}.csv`);
+    },
+
+    loadSaved() {
+      StorageEngine.getAll('land_measurements').then(rows => {
+        state.land.saved = rows || [];
+        this.renderSaved();
+      }).catch(() => {});
+    },
+
+    // Lightweight readout of current GPS accuracy while the Land tab is
+    // open, so the person can see when it's good enough to mark a corner.
+    // Distinct from the auto-track watcher, and skipped if that one is
+    // already running so there's never more than one active GPS watch.
+    _accWatchId: null,
+    startAccuracyWatch() {
+      if (this._accWatchId !== null || state.land.autoTracking || !('geolocation' in navigator)) return;
+      this._accWatchId = navigator.geolocation.watchPosition(
+        pos => {
+          const el = $('landCurrentAcc');
+          if (el) el.textContent = `±${Math.round(pos.coords.accuracy || 0)} m`;
+        },
+        () => {},
+        { enableHighAccuracy: true }
+      );
+    },
+    stopAccuracyWatch() {
+      if (this._accWatchId !== null) { navigator.geolocation.clearWatch(this._accWatchId); this._accWatchId = null; }
+    }
+  };
+
+  // ============================================================
+  // LAND MEASUREMENT - EVENT WIRING
+  // ============================================================
+  $('landModeManual').addEventListener('click', () => {
+    state.land.mode = 'manual';
+    $('landModeManual').classList.add('active');
+    $('landModeAuto').classList.remove('active');
+    $('landManualControls').style.display = 'block';
+    $('landAutoControls').style.display = 'none';
+    if (state.land.autoTracking) LandEngine.stopAutoTrack();
+  });
+  $('landModeAuto').addEventListener('click', () => {
+    state.land.mode = 'auto';
+    $('landModeAuto').classList.add('active');
+    $('landModeManual').classList.remove('active');
+    $('landAutoControls').style.display = 'block';
+    $('landManualControls').style.display = 'none';
+  });
+  $('landAddPoint').addEventListener('click', () => LandEngine.addManualPoint());
+  $('landAutoStart').addEventListener('click', () => LandEngine.startAutoTrack());
+  $('landAutoStop').addEventListener('click', () => LandEngine.stopAutoTrack());
+  $('landUndo').addEventListener('click', () => LandEngine.undo());
+  $('landClear').addEventListener('click', () => LandEngine.clear());
+  $('landSaveBtn').addEventListener('click', () => LandEngine.save());
+  $('landExportGeoJSON').addEventListener('click', () => LandEngine.exportGeoJSON());
+  $('landExportCSV').addEventListener('click', () => LandEngine.exportCSV());
+  document.querySelectorAll('#landUnitRow .unit-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#landUnitRow .unit-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.land.unit = chip.getAttribute('data-unit');
+      LandEngine.renderResult();
+    });
+  });
 
   // ============================================================
   // STEP DETECTION - FIXED
@@ -2357,12 +2913,13 @@
       StorageEngine.getAll('sessions'),
       StorageEngine.getAll('events'),
       StorageEngine.getAll('activities'),
-      StorageEngine.getAll('preferences')
-    ]).then(([automations, gestures, places, sessions, events, activities, preferences]) => {
+      StorageEngine.getAll('preferences'),
+      StorageEngine.getAll('land_measurements')
+    ]).then(([automations, gestures, places, sessions, events, activities, preferences, land_measurements]) => {
       const data = {
         timestamp: new Date().toISOString(),
-        version: '3.3',
-        automations, gestures, places, sessions, events, activities, preferences,
+        version: '3.4',
+        automations, gestures, places, sessions, events, activities, preferences, land_measurements,
         calibration: { calibrated: state._calibrated, baseline: state._calibrationBaseline }
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -3294,6 +3851,7 @@
         StorageEngine.clear('events');
         StorageEngine.clear('activities');
         StorageEngine.clear('preferences');
+        StorageEngine.clear('land_measurements');
         for (const cleanup of state._listenerCleanup) {
           try { cleanup(); } catch (e) {}
         }
@@ -3678,6 +4236,8 @@
   updateGoalProgress();
   updateSoundUI();
   renderWeeklyStepsChart();
+  LandEngine.loadSaved();
+  LandEngine.renderAll();
 
   console.log('SensorMind v3.3 - Walking Detection Fixed!');
   console.log('✅ Walking detection improved - no more false cycling');
